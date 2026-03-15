@@ -270,6 +270,28 @@ h1 {
 .result-inv-line { font-size: 0.82rem; color: var(--ink2); margin-bottom: 3px; }
 .no-results { font-size: 0.86rem; color: var(--ink3); font-style: italic; padding: 10px 0; }
 
+/* Bass result rows */
+.bass-result-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 130px 1fr;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--bg3);
+  font-size: 0.82rem;
+}
+.bass-result-row:last-child { border-bottom: none; }
+.rn-inline {
+  font-family: 'IM Fell English', serif;
+  font-size: 1rem;
+  color: var(--red);
+}
+.rn-inline.minor-rn { font-style: italic; }
+.rn-inline.secondary { color: var(--purple); }
+.rn-inline.special { color: var(--green); }
+.bass-result-name { color: var(--ink3); font-size: 0.76rem; }
+.bass-result-inv  { color: var(--ink3); font-size: 0.74rem; }
+
 /* ── Footer ──────────────────── */
 .footnote {
   margin-top: 22px; font-size: 0.68rem; color: var(--ink3);
@@ -300,6 +322,7 @@ h1 {
 <div class="tab-bar">
   <button class="tab-btn active" data-tab="chords" onclick="showTab(this,'chords')">Chord Reference</button>
   <button class="tab-btn" data-tab="lookup" onclick="showTab(this,'lookup')">Chord Lookup</button>
+  <button class="tab-btn" data-tab="bass" onclick="showTab(this,'bass')">Identify from Bass Note</button>
 </div>
 
 <!-- ══ CHORD REFERENCE ══ -->
@@ -354,6 +377,30 @@ h1 {
     </div>
   </div>
 </div>
+
+<!-- ══ BASS NOTE IDENTIFIER ══ -->
+<div class="tab-panel" id="tab-bass">
+  <div class="layout">
+    <div>
+      <div class="panel">
+        <div class="panel-title">Key</div>
+        <svg id="cof-bass" viewBox="-140 -140 280 280" width="232" height="232" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto"></svg>
+        <div class="mode-row">
+          <button class="mode-btn active" id="btn-major-bs" onclick="setModeBass('major')">Major</button>
+          <button class="mode-btn" id="btn-minor-bs" onclick="setModeBass('minor')">Minor</button>
+        </div>
+        <div class="key-display" id="key-display-bs">C major<small>Key of C</small></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Identify from Bass Note</div>
+      <p class="lookup-intro">Select a bass note to see every chord in the chosen key that could have that note in the bass, along with the Roman numeral and inversion it implies.</p>
+      <div class="note-picker" id="bass-note-picker"></div>
+      <div id="bass-results"></div>
+    </div>
+  </div>
+</div>
+
 
 <p class="footnote">
   <strong>How to read this:</strong> Click a chord to expand its inversions. The <strong>bass note</strong> (underlined in red) tells you which note is at the bottom of the chord — this determines the Roman numeral suffix. The <strong>chord tones</strong> column shows the notes of the chord in root-position order; the 7th is shown in <em>italics (7th: X)</em> and is optional — include it for a richer sound, omit it for a plain triad. In the <strong>3rd inversion</strong>, the 7th is in the bass and is underlined like any other bass note.
@@ -422,9 +469,17 @@ const FB = {
 // bassNote = the note in the bass for that inversion (drives the RN suffix).
 // The 7th is identified by value (note7) not by position, so it's always bracketed
 // regardless of which inversion we're in.
+// rnDisplay inserts the figured-bass suffix BEFORE any slash qualifier
+// so V/IV + ⁷ → V⁷/IV, not V/IV⁷.
+function rnWithSuffix(rn, suf) {
+  if (!suf) return rn;
+  const slash = rn.indexOf('/');
+  if (slash === -1) return rn + suf;
+  return rn.slice(0, slash) + suf + rn.slice(slash);
+}
+
 function inversions(rn, fbType, notes3, note7) {
   const rows = FB[fbType] || FB.triad7;
-  // Root-position triad + optional 7th — this order never changes across rows
   const rootPosNotes = note7 ? [...notes3, note7] : [...notes3];
   const result = [];
 
@@ -436,12 +491,12 @@ function inversions(rn, fbType, notes3, note7) {
     const bassNote = i < 3 ? notes3[i] : note7;
 
     result.push({
-      inv:        lb.inv,
+      inv:         lb.inv,
       suf,
-      rnDisplay:  rn + suf,
+      rnDisplay:   rnWithSuffix(rn, suf),
       bassNote,
-      allNotes:   rootPosNotes,   // always root-position order
-      note7:      note7 || null,
+      allNotes:    rootPosNotes,
+      note7:       note7 || null,
       note7inBass: i === 3,
     });
   });
@@ -458,14 +513,24 @@ function getDiatonicChords(rootPc, mode, useSharp) {
   const pcs = scale.map(s => (rootPc + s) % 12);
   const lt = (rootPc + 11) % 12; // leading tone (raised 7th)
 
-  // iv7 in minor: interval of minor 7th = 10
-  // Build a chord object. iv7 = interval for the 7th above chord root (or null).
+  // Build a chord object.
+  // seventh = semitone interval for the 7th above chord root, or null.
+  // useSharpFor7th: override the key's enharmonic preference for the 7th note.
+  //   - Minor 7th (interval 10, dom7/triad7) is a flattened degree → always spell flat
+  //   - Diminished 7th (interval 9) is doubly-flattened → always spell flat
+  //   - Major 7th (interval 11) is a raised degree → follow key spelling
   function chord(rn, name, rootP, triadIvs, seventh, fbType, min, section) {
-    const triadPcs  = triadIvs.map(iv => (rootP + iv) % 12);
+    const triadPcs   = triadIvs.map(iv => (rootP + iv) % 12);
     const triadNotes = triadPcs.map(p => nn(p, useSharp));
-    const note7Pc   = seventh !== null ? (rootP + seventh) % 12 : null;
-    const note7     = note7Pc !== null ? nn(note7Pc, useSharp) : null;
-    const allPcs    = note7Pc !== null ? [...triadPcs, note7Pc] : triadPcs;
+    let note7 = null, note7Pc = null;
+    if (seventh !== null) {
+      note7Pc = (rootP + seventh) % 12;
+      // Minor 7th (10) and diminished 7th (9) are lowered intervals → flat spelling
+      // Major 7th (11) follows the key spelling
+      const spell7flat = (seventh === 10 || seventh === 9);
+      note7 = nn(note7Pc, spell7flat ? false : useSharp);
+    }
+    const allPcs = note7Pc !== null ? [...triadPcs, note7Pc] : triadPcs;
     return {
       rn, name, rootP,
       chordPcs:   allPcs,
@@ -663,6 +728,8 @@ const S = {
   mode: 'major', keyIndex: 0, enhOverride: null,
   luMode: 'major', luKeyIndex: 0,
   selectedPCs: new Set(),
+  bsMode: 'major', bsKeyIndex: 0,
+  bsPC: null,  // selected bass note pitch class
 };
 
 function cof(forLu) { return (forLu ? S.luMode : S.mode) === 'major' ? COF_MAJ : COF_MIN; }
@@ -671,6 +738,9 @@ function useSharp(forLu) {
   if (!forLu && S.enhOverride !== null) return S.enhOverride;
   return keyObj(forLu).sharps;
 }
+// Bass tab accessors
+function keyObjBs() { return (S.bsMode === 'major' ? COF_MAJ : COF_MIN)[S.bsKeyIndex]; }
+function useSharpBs() { return keyObjBs().sharps; }
 
 // ═══════════════════ COF DRAW
 
@@ -1062,6 +1132,126 @@ function renderLookupCOF() {
     `${k.name} ${S.luMode}<small>Key of ${k.name}</small>`;
 }
 
+// ═══════════════════ BASS NOTE TAB
+
+function renderBassCOF() {
+  const k = keyObjBs();
+  drawCOF('cof-bass', S.bsKeyIndex, S.bsMode, i => {
+    S.bsKeyIndex = i;
+    S.bsPC = null;
+    renderBassCOF();
+    rebuildBassNotePicker();
+    document.getElementById('bass-results').innerHTML = '';
+  });
+  document.getElementById('key-display-bs').innerHTML =
+    `${k.name} ${S.bsMode}<small>Key of ${k.name}</small>`;
+}
+
+function rebuildBassNotePicker() {
+  const us = useSharpBs();
+  const picker = document.getElementById('bass-note-picker');
+  picker.innerHTML = '';
+  for (let pc = 0; pc < 12; pc++) {
+    const pill = document.createElement('button');
+    pill.className = 'note-pill' + (S.bsPC === pc ? ' selected' : '');
+    pill.textContent = nn(pc, us);
+    pill.addEventListener('click', () => {
+      S.bsPC = (S.bsPC === pc) ? null : pc;
+      rebuildBassNotePicker();
+      identifyFromBass();
+    });
+    picker.appendChild(pill);
+  }
+}
+
+function identifyFromBass() {
+  const res = document.getElementById('bass-results');
+  res.innerHTML = '';
+  if (S.bsPC === null) return;
+
+  const k  = keyObjBs();
+  const us = useSharpBs();
+  const chords = getDiatonicChords(k.pc, S.bsMode, us);
+  const bassName = nn(S.bsPC, us);
+
+  // For each chord, check each inversion to see if its bass PC matches
+  const matches = [];
+  chords.forEach(ch => {
+    ch.inversions.forEach((inv, invIdx) => {
+      // Bass PC: inversions 0-2 come from triad notes, inversion 3 from note7
+      const bassPc = invIdx < 3
+        ? ch.chordPcs[invIdx % ch.chordPcs.length]
+        : ch.chordPcs[ch.chordPcs.length - 1];  // 7th is last element
+      if (((bassPc % 12) + 12) % 12 !== ((S.bsPC % 12) + 12) % 12) return;
+      matches.push({ ch, inv });
+    });
+  });
+
+  if (matches.length === 0) {
+    res.innerHTML = '<p class="no-results">No diatonic or secondary dominant chord has this note in the bass in this key.</p>';
+    return;
+  }
+
+  // Group by section
+  const sections = ['diatonic', 'secondary', 'aug6', 'ct'];
+  const sectionLabels = {
+    diatonic:  'Diatonic Chords',
+    secondary: 'Secondary Dominants',
+    aug6:      'Augmented Sixth Chords',
+    ct:        'Common Tone Chords',
+  };
+
+  let lastSection = null;
+  matches.forEach(({ ch, inv }) => {
+    if (ch.section !== lastSection) {
+      lastSection = ch.section;
+      const lbl = document.createElement('div');
+      lbl.className = 'chord-section-label';
+      lbl.textContent = sectionLabels[ch.section] || ch.section;
+      res.appendChild(lbl);
+    }
+
+    const isMin  = ch.min;
+    const isSec  = ch.section === 'secondary';
+    const isSpec = ch.section === 'aug6' || ch.section === 'ct';
+
+    const row = document.createElement('div');
+    row.className = 'bass-result-row';
+
+    // Notes HTML: bass underlined, 7th labelled
+    const nHtml = inv.allNotes.map(n => {
+      if (n === inv.bassNote && !inv.note7inBass)
+        return `<span class="bass-hl">${n}</span>`;
+      if (inv.note7inBass && n === inv.note7)
+        return `<span class="bass-hl">${n}</span>`;
+      if (inv.note7 && n === inv.note7 && !inv.note7inBass)
+        return `<span class="note-seventh">(7th: ${n})</span>`;
+      return n;
+    }).join(' ');
+
+    const rnClass = `rn-inline ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}`.trim();
+
+    row.innerHTML = `
+      <span class="${rnClass}">${inv.rnDisplay}</span>
+      <span class="bass-result-name">${ch.name}</span>
+      <span class="bass-result-inv">${inv.inv || 'Root position'}</span>
+      <span class="td-notes">${nHtml}</span>`;
+    res.appendChild(row);
+  });
+}
+
+function setModeBass(mode) {
+  S.bsMode = mode;
+  S.bsPC = null;
+  document.getElementById('btn-major-bs').classList.toggle('active', mode === 'major');
+  document.getElementById('btn-minor-bs').classList.toggle('active', mode === 'minor');
+  renderBassCOF();
+  rebuildBassNotePicker();
+  document.getElementById('bass-results').innerHTML = '';
+}
+
+
+
 function rebuildNotePicker() {
   const us = useSharp(true);
   const picker = document.getElementById('note-picker');
@@ -1186,6 +1376,8 @@ function showTab(btn, id) {
 renderChords();
 renderLookupCOF();
 rebuildNotePicker();
+renderBassCOF();
+rebuildBassNotePicker();
 </script>
 </body>
 </html>
