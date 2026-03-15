@@ -21,6 +21,7 @@
   --teal:       #1a5a5a;
   --gold:       #7a5a10;
   --purple:     #4a2a6a;
+  --green:      #285a28;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -219,9 +220,8 @@ h1 {
 .td-notes { color: var(--ink2); font-size: 0.8rem; }
 .bass-hl { color: var(--red); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .note-seventh { color: var(--ink3); font-style: italic; }
-.row-with7 { background: rgba(200,191,170,0.18); }
-.row-with7 .td-rn { color: var(--gold); }
-.row-triad-only { }
+.rn.special { color: var(--green); }
+.td-rn.special { color: var(--green); }
 
 /* ── Lookup tab ──────────────── */
 .lookup-intro { font-size: 0.86rem; color: var(--ink2); margin-bottom: 14px; line-height: 1.65; }
@@ -346,9 +346,11 @@ h1 {
 </div>
 
 <p class="footnote">
-  7th shown in <em>(brackets)</em> — shaded rows include the 7th · Figured bass: root = plain; 1st inv = ⁶; 2nd inv = ⁶₄ &nbsp;|&nbsp;
+  7th shown in <em>(brackets)</em> · Figured bass: root = plain; 1st inv = ⁶; 2nd inv = ⁶₄ &nbsp;|&nbsp;
   With 7th: root = ⁷; 1st inv = ⁶₅; 2nd inv = ⁴₃; 3rd inv = ⁴₂ &nbsp;|&nbsp;
-  Dim. 7th: root = °⁷; inversions = °⁶₅ °⁴₃ °⁴₂ &nbsp;|&nbsp; Underlined note = bass voice
+  Dim. 7th: °⁷ °⁶₅ °⁴₃ °⁴₂ &nbsp;|&nbsp;
+  Aug. 6ths: It⁺⁶ (b̂6–^1–♯^4) · Fr⁴₃ adds ^2 · Ger⁶₅ adds b̂3 &nbsp;|&nbsp;
+  CT chords: dim7 or dom7 whose notes surround a held common tone (shown in chord name) &nbsp;|&nbsp; Underlined = bass
 </p>
 </div>
 
@@ -378,80 +380,57 @@ const COF_MIN = [
 ];
 
 // ═══════════════════ FIGURED BASS TABLES
-// Each chord is stored as a triad with an optional 7th note (in brackets).
-// Inversions cover both the 3-note triad AND the 4-note 7th chord.
-// For 7th-chord inversions the RN suffix carries the figured-bass number
-// WITHOUT a leading ⁷ (e.g. ⁶₅, ⁴₃, ⁴₂ — the ⁷ is implied by root position).
+// One row per inversion position. 7th shown in brackets inline.
 
-// FB entries: { inv, sufTriad, suf7 }
-//   sufTriad = suffix when playing without the 7th
-//   suf7     = suffix when playing with the 7th (root pos uses plain rn for triads,
-//              but "⁷" for the 7th-chord root position is kept only here to signal it)
 const FB = {
-  // Generic triads that have a diatonic 7th
   triad7: [
-    {inv:'Root position',         sufTriad:'',    suf7:'⁷'},
-    {inv:'1st inversion',         sufTriad:'⁶',   suf7:'⁶₅'},
-    {inv:'2nd inversion',         sufTriad:'⁶₄',  suf7:'⁴₃'},
-    {inv:'3rd inversion (7th bass)', sufTriad:null, suf7:'⁴₂'},
+    {inv:'Root position',            sufTriad:'',    suf7:'⁷'},
+    {inv:'1st inversion',            sufTriad:'⁶',   suf7:'⁶₅'},
+    {inv:'2nd inversion',            sufTriad:'⁶₄',  suf7:'⁴₃'},
+    {inv:'3rd inversion (7th bass)', sufTriad:null,  suf7:'⁴₂'},
   ],
-  // Dominant 7th (same shape)
   dom7: [
-    {inv:'Root position',         sufTriad:'',    suf7:'⁷'},
-    {inv:'1st inversion',         sufTriad:'⁶',   suf7:'⁶₅'},
-    {inv:'2nd inversion',         sufTriad:'⁶₄',  suf7:'⁴₃'},
-    {inv:'3rd inversion (7th bass)', sufTriad:null, suf7:'⁴₂'},
+    {inv:'Root position',            sufTriad:'',    suf7:'⁷'},
+    {inv:'1st inversion',            sufTriad:'⁶',   suf7:'⁶₅'},
+    {inv:'2nd inversion',            sufTriad:'⁶₄',  suf7:'⁴₃'},
+    {inv:'3rd inversion (7th bass)', sufTriad:null,  suf7:'⁴₂'},
   ],
-  // Diminished 7th
   dim7: [
-    {inv:'Root position',         sufTriad:'',    suf7:'°⁷'},
-    {inv:'1st inversion',         sufTriad:'⁶',   suf7:'°⁶₅'},
-    {inv:'2nd inversion',         sufTriad:'⁶₄',  suf7:'°⁴₃'},
-    {inv:'3rd inversion (7th bass)', sufTriad:null, suf7:'°⁴₂'},
+    {inv:'Root position',            sufTriad:'',    suf7:'°⁷'},
+    {inv:'1st inversion',            sufTriad:'⁶',   suf7:'°⁶₅'},
+    {inv:'2nd inversion',            sufTriad:'⁶₄',  suf7:'°⁴₃'},
+    {inv:'3rd inversion (7th bass)', sufTriad:null,  suf7:'°⁴₂'},
+  ],
+  // Fixed chords (Aug 6ths, CT chords) — single row, no inversion cycling
+  fixed: [
+    {inv:'', sufTriad:'', suf7:''},
   ],
 };
 
-// Build inversion rows for a chord that has an optional 7th note.
-// notes3 = [root, 3rd, 5th], note7 = seventh note string or null
+// One row per inversion position. notes3 = triad, note7 = optional 7th string.
 function inversions(rn, fbType, notes3, note7) {
   const rows = FB[fbType] || FB.triad7;
-  // All 4 notes (with 7th), or 3 without
   const notes4 = note7 ? [...notes3, note7] : notes3;
   const result = [];
 
   rows.forEach((lb, i) => {
-    const has7th = !!note7;
+    if (i === 3 && !note7) return;
+    if (lb.sufTriad === null && !note7) return;
 
-    // 3rd-inversion row only exists when there's a 7th
-    if (i === 3 && !has7th) return;
-
-    // For inversions 0-2 the bass comes from notes3; inversion 3 bass = note7
+    const suf      = note7 ? lb.suf7 : lb.sufTriad;
     const bassNote = i < 3 ? notes3[i] : note7;
+    const src      = note7 ? notes4 : notes3;
+    const rotated  = [...src.slice(i % src.length), ...src.slice(0, i % src.length)];
 
-    // Rotate the full 4-note (or 3-note) set so bass is first
-    const src = has7th ? notes4 : notes3;
-    const rotated = [...src.slice(i % src.length), ...src.slice(0, i % src.length)];
-
-    // Without 7th
-    if (lb.sufTriad !== null) {
-      result.push({
-        inv: lb.inv,
-        suf: lb.sufTriad,
-        rnDisplay: rn + lb.sufTriad,
-        bassNote,
-        allNotes: [...notes3.slice(i % 3), ...notes3.slice(0, i % 3)],
-        withSeventh: false,
-      });
-    }
-
-    // With 7th
     result.push({
-      inv: lb.inv + (has7th ? ' + 7th' : ''),
-      suf: lb.suf7,
-      rnDisplay: rn + lb.suf7,
+      inv: lb.inv,
+      suf,
+      rnDisplay: rn + suf,
       bassNote,
+      triadRotated: [...notes3.slice(i % notes3.length), ...notes3.slice(0, i % notes3.length)],
       allNotes: rotated,
-      withSeventh: true,
+      note7: note7 || null,
+      note7inBass: i === 3,
     });
   });
 
@@ -538,7 +517,122 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     });
   }
 
-  return [...diatonic, ...secondary];
+  // ── Augmented Sixth Chords ───────────────────────────────────────────────
+  // All three types have b̂6 in the bass and ♯^4 as the top note (augmented 6th interval).
+  // b̂6 = rootPc+8, ^1 = rootPc, ♯^4 = rootPc+6
+  // Italian:  b̂6 – ^1 – ♯^4           (3 voices)
+  // French:   b̂6 – ^1 – ^2 – ♯^4      (adds ^2; figured bass ⁴₃ from bass)
+  // German:   b̂6 – ^1 – b̂3 – ♯^4     (adds b̂3; figured bass ⁶₅ from bass)
+
+  const aug6 = [];
+  {
+    const b6pc   = (rootPc + 8) % 12;
+    const ton    = rootPc;
+    const sharp4 = (rootPc + 6) % 12;
+
+    const itNotes = [b6pc, ton, sharp4].map(p => nn(p, useSharp));
+    aug6.push({
+      rn: 'It⁺⁶', name: 'Italian augmented 6th',
+      triadNotes: itNotes, note7: null,
+      chordPcs: [b6pc, ton, sharp4], chordNotes: itNotes,
+      inversions: [{ inv:'', suf:'', rnDisplay:'It⁺⁶', bassNote: itNotes[0],
+        triadRotated: itNotes, allNotes: itNotes, note7: null, note7inBass: false }],
+      fbType: 'fixed', min: false, section: 'aug6',
+    });
+
+    // French: ⁴₃ — four notes, b̂6 – ^1 – ^2 – ♯^4, displayed as triad + 7th (^2 in brackets)
+    const fr2pc   = (rootPc + 2) % 12;
+    const frBase  = [b6pc, ton, sharp4].map(p => nn(p, useSharp));
+    const frNote7 = nn(fr2pc, useSharp);
+    aug6.push({
+      rn: 'Fr⁴₃', name: 'French augmented 6th',
+      triadNotes: frBase, note7: frNote7,
+      chordPcs: [b6pc, ton, fr2pc, sharp4], chordNotes: [...frBase, frNote7],
+      inversions: [{ inv:'', suf:'', rnDisplay:'Fr⁴₃', bassNote: frBase[0],
+        triadRotated: frBase, allNotes: [...frBase, frNote7], note7: frNote7, note7inBass: false }],
+      fbType: 'fixed', min: false, section: 'aug6',
+    });
+
+    // German: ⁶₅ — four notes, b̂6 – ^1 – b̂3 – ♯^4, displayed as triad + 7th (b̂3 in brackets)
+    const ger3pc   = (rootPc + 3) % 12;
+    const gerBase  = [b6pc, ton, sharp4].map(p => nn(p, useSharp));
+    const gerNote7 = nn(ger3pc, useSharp);
+    aug6.push({
+      rn: 'Ger⁶₅', name: 'German augmented 6th',
+      triadNotes: gerBase, note7: gerNote7,
+      chordPcs: [b6pc, ton, ger3pc, sharp4], chordNotes: [...gerBase, gerNote7],
+      inversions: [{ inv:'', suf:'', rnDisplay:'Ger⁶₅', bassNote: gerBase[0],
+        triadRotated: gerBase, allNotes: [...gerBase, gerNote7], note7: gerNote7, note7inBass: false }],
+      fbType: 'fixed', min: false, section: 'aug6',
+    });
+  }
+
+  // ── Common Tone Chords ───────────────────────────────────────────────────
+  // A CT chord is a chromatic chord that shares one note (the "common tone") with
+  // the chord it embellishes. The common tone is held/sustained while the other
+  // voices move away and back.
+  //
+  // CT°7 → I:  Common tone = ^1 (tonic). The dim7 is built on ♯^1 so its members
+  //            (♯^1, ^3, ^5, ♭^7) surround the held ^1. In C: CT = C, dim7 = C♯–E–G–B♭.
+  //            The chord displayed is the dim7; the CT note is shown separately as the
+  //            sustained voice.
+  //
+  // CT°7 → V:  Common tone = ^5. Dim7 built on ♯^5: G♯–B–D–F in C major.
+  //            CT note = G.
+  //
+  // CT V7 → I: A dominant-7th chord sharing ^1 as a member, built on ♭^6 (= b̂6):
+  //            A♭–C–E♭–G♭ in C major. The C is the common tone shared with I.
+  //            (This is the most common academic CT V7 construction.)
+
+  const ct = [];
+  {
+    // CT°7 → I: dim7 on ♯^1, CT = ^1
+    const ctIRoot  = (rootPc + 1) % 12;
+    const ctIPcs   = [0,3,6,9].map(iv => (ctIRoot + iv) % 12);
+    const ctINotes = ctIPcs.map(p => nn(p, useSharp));
+    const ctINote  = nn(rootPc, useSharp); // the sustained common tone
+    ct.push({
+      rn: 'CT°⁷', name: `Common-tone dim. 7th → I  (CT = ${ctINote})`,
+      triadNotes: ctINotes.slice(0,3), note7: ctINotes[3],
+      chordPcs: ctIPcs, chordNotes: ctINotes,
+      inversions: [{ inv:'', suf:'', rnDisplay:'CT°⁷', bassNote: ctINotes[0],
+        triadRotated: ctINotes.slice(0,3), allNotes: ctINotes,
+        note7: ctINotes[3], note7inBass: false }],
+      fbType: 'fixed', min: false, section: 'ct',
+    });
+
+    // CT°7 → V: dim7 on ♯^5, CT = ^5
+    const ctVRoot  = (pcs[4] + 1) % 12;
+    const ctVPcs   = [0,3,6,9].map(iv => (ctVRoot + iv) % 12);
+    const ctVNotes = ctVPcs.map(p => nn(p, useSharp));
+    const ctVNote  = nn(pcs[4], useSharp); // the sustained CT = ^5
+    ct.push({
+      rn: 'CT°⁷/V', name: `Common-tone dim. 7th → V  (CT = ${ctVNote})`,
+      triadNotes: ctVNotes.slice(0,3), note7: ctVNotes[3],
+      chordPcs: ctVPcs, chordNotes: ctVNotes,
+      inversions: [{ inv:'', suf:'', rnDisplay:'CT°⁷/V', bassNote: ctVNotes[0],
+        triadRotated: ctVNotes.slice(0,3), allNotes: ctVNotes,
+        note7: ctVNotes[3], note7inBass: false }],
+      fbType: 'fixed', min: false, section: 'ct',
+    });
+
+    // CT V7 → I: dom7 on ♭^6, CT = ^1 (tonic is the 3rd of this chord)
+    const ctV7Root  = (rootPc + 8) % 12;  // ♭^6
+    const ctV7Pcs   = [0,4,7,10].map(iv => (ctV7Root + iv) % 12);
+    const ctV7Notes = ctV7Pcs.map(p => nn(p, useSharp));
+    const ctV7CT    = nn(rootPc, useSharp); // ^1 appears as the major 3rd of ♭^6 chord
+    ct.push({
+      rn: 'CT V⁷', name: `Common-tone dominant 7th → I  (CT = ${ctV7CT})`,
+      triadNotes: ctV7Notes.slice(0,3), note7: ctV7Notes[3],
+      chordPcs: ctV7Pcs, chordNotes: ctV7Notes,
+      inversions: [{ inv:'', suf:'', rnDisplay:'CT V⁷', bassNote: ctV7Notes[0],
+        triadRotated: ctV7Notes.slice(0,3), allNotes: ctV7Notes,
+        note7: ctV7Notes[3], note7inBass: false }],
+      fbType: 'fixed', min: false, section: 'ct',
+    });
+  }
+
+  return [...diatonic, ...secondary, ...aug6, ...ct];
 }
 
 // ═══════════════════ STATE
@@ -638,12 +732,18 @@ function renderChords() {
       lastSec = ch.section;
       const lbl = document.createElement('div');
       lbl.className = 'chord-section-label';
-      lbl.textContent = ch.section === 'diatonic' ? 'Diatonic Chords' : 'Secondary Dominants';
+      lbl.textContent = {
+        diatonic:   'Diatonic Chords',
+        secondary:  'Secondary Dominants',
+        aug6:       'Augmented Sixth Chords',
+        ct:         'Common Tone Chords',
+      }[ch.section] || ch.section;
       grid.appendChild(lbl);
     }
 
     const isMin = ch.min;
     const isSec = ch.section === 'secondary';
+    const isSpec = ch.section === 'aug6' || ch.section === 'ct';
     const card = document.createElement('div');
     card.className = 'chord-card';
 
@@ -653,7 +753,7 @@ function renderChords() {
       ? ch.triadNotes.join(' – ') + ' <span class="note-seventh">(+' + ch.note7 + ')</span>'
       : ch.triadNotes.join(' – ');
     hdr.innerHTML = `
-      <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''}">${ch.rn}</span>
+      <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${ch.rn}</span>
       <span class="chord-name">${ch.name}</span>
       <span class="chord-notes-sum">${notesSummary}</span>
       <span class="expand-icon">▼</span>`;
@@ -663,25 +763,38 @@ function renderChords() {
     wrap.className = 'inv-wrap';
     const tbl = document.createElement('table');
     tbl.className = 'inv-table';
-    tbl.innerHTML = `<thead><tr>
-      <th>Bass</th><th>Roman numeral</th><th>Inversion</th><th>Chord tones (bass → upper)</th>
-    </tr></thead>`;
+
+    const isFixed = ch.fbType === 'fixed';
+    tbl.innerHTML = isFixed
+      ? `<thead><tr><th>Bass</th><th>Chord name</th><th>Chord tones</th></tr></thead>`
+      : `<thead><tr><th>Bass</th><th>Roman numeral</th><th>Inversion</th><th>Chord tones (bass → upper)</th></tr></thead>`;
+
     const tbody = document.createElement('tbody');
     ch.inversions.forEach(inv => {
       const tr = document.createElement('tr');
-      tr.className = inv.withSeventh ? 'row-with7' : 'row-triad-only';
+      // Build note HTML: bass underlined, 7th in brackets, others plain
       const nHtml = inv.allNotes.map((n, ni) => {
-        const isBass = ni === 0;
-        const isSeventh = inv.withSeventh && ni === inv.allNotes.length - 1 && !isBass;
+        const isBass   = ni === 0;
+        // 7th is the last note when note7 is present and not in bass
+        const is7th    = inv.note7 && !inv.note7inBass && ni === inv.allNotes.length - 1;
+        // when 7th is in bass it's ni===0 (already handled as bass)
         if (isBass) return `<span class="bass-hl">${n}</span>`;
-        if (isSeventh) return `<span class="note-seventh">(${n})</span>`;
+        if (is7th)  return `<span class="note-seventh">(${n})</span>`;
         return n;
       }).join(' ');
-      tr.innerHTML = `
-        <td class="td-bass">${inv.bassNote}</td>
-        <td class="td-rn ${isMin?'minor-rn':''} ${isSec?'secondary':''}">${inv.rnDisplay}</td>
-        <td class="td-inv">${inv.inv}</td>
-        <td class="td-notes">${nHtml}</td>`;
+
+      if (isFixed) {
+        tr.innerHTML = `
+          <td class="td-bass">${inv.bassNote}</td>
+          <td class="td-rn ${isSpec?'special':''}">${inv.rnDisplay}</td>
+          <td class="td-notes">${nHtml}</td>`;
+      } else {
+        tr.innerHTML = `
+          <td class="td-bass">${inv.bassNote}</td>
+          <td class="td-rn ${isMin?'minor-rn':''} ${isSec?'secondary':''}">${inv.rnDisplay}</td>
+          <td class="td-inv">${inv.inv}</td>
+          <td class="td-notes">${nHtml}</td>`;
+      }
       tbody.appendChild(tr);
     });
     tbl.appendChild(tbody);
