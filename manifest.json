@@ -1,0 +1,12 @@
+{
+  "name": "Harmonia",
+  "short_name": "Harmonia",
+  "description": "Roman numeral harmony reference for tonal classical works",
+  "start_url": "/harmonia/",
+  "display": "standalone",
+  "background_color": "#f5f0e8",
+  "theme_color": "#8b2020",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

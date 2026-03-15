@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background -->
+  <circle cx="50" cy="50" r="50" fill="#f5f0e8"/>
+  <!-- Outer ring -->
+  <path d="M 51.68,2.03 A 48,48 0 0,1 72.53,7.62 L 65.02,21.75 A 32,32 0 0,0 51.12,18.02 Z" fill="hsl(0,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 75.44,9.29 A 48,48 0 0,1 90.71,24.56 L 77.14,33.04 A 32,32 0 0,0 66.96,22.86 Z" fill="hsl(30,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 92.38,27.47 A 48,48 0 0,1 97.97,48.32 L 81.98,48.88 A 32,32 0 0,0 78.25,34.98 Z" fill="hsl(60,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 97.97,51.68 A 48,48 0 0,1 92.38,72.53 L 78.25,65.02 A 32,32 0 0,0 81.98,51.12 Z" fill="hsl(90,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 90.71,75.44 A 48,48 0 0,1 75.44,90.71 L 66.96,77.14 A 32,32 0 0,0 77.14,66.96 Z" fill="hsl(120,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 72.53,92.38 A 48,48 0 0,1 51.68,97.97 L 51.12,81.98 A 32,32 0 0,0 65.02,78.25 Z" fill="hsl(150,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 48.32,97.97 A 48,48 0 0,1 27.47,92.38 L 34.98,78.25 A 32,32 0 0,0 48.88,81.98 Z" fill="hsl(180,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 24.56,90.71 A 48,48 0 0,1 9.29,75.44 L 22.86,66.96 A 32,32 0 0,0 33.04,77.14 Z" fill="hsl(210,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 7.62,72.53 A 48,48 0 0,1 2.03,51.68 L 18.02,51.12 A 32,32 0 0,0 21.75,65.02 Z" fill="hsl(240,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 2.03,48.32 A 48,48 0 0,1 7.62,27.47 L 21.75,34.98 A 32,32 0 0,0 18.02,48.88 Z" fill="hsl(270,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 9.29,24.56 A 48,48 0 0,1 24.56,9.29 L 33.04,22.86 A 32,32 0 0,0 22.86,33.04 Z" fill="hsl(300,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 27.47,7.62 A 48,48 0 0,1 48.32,2.03 L 48.88,18.02 A 32,32 0 0,0 34.98,21.75 Z" fill="hsl(330,28%,80%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <!-- Inner ring -->
+  <path d="M 51.08,19.02 A 31,31 0 0,1 64.55,22.63 L 59.39,32.34 A 20,20 0 0,0 50.70,30.01 Z" fill="hsl(0,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 66.43,23.71 A 31,31 0 0,1 76.29,33.57 L 66.96,39.40 A 20,20 0 0,0 60.60,33.04 Z" fill="hsl(30,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 77.37,35.45 A 31,31 0 0,1 80.98,48.92 L 69.99,49.30 A 20,20 0 0,0 67.66,40.61 Z" fill="hsl(60,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 80.98,51.08 A 31,31 0 0,1 77.37,64.55 L 67.66,59.39 A 20,20 0 0,0 69.99,50.70 Z" fill="hsl(90,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 76.29,66.43 A 31,31 0 0,1 66.43,76.29 L 60.60,66.96 A 20,20 0 0,0 66.96,60.60 Z" fill="hsl(120,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 64.55,77.37 A 31,31 0 0,1 51.08,80.98 L 50.70,69.99 A 20,20 0 0,0 59.39,67.66 Z" fill="hsl(150,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 48.92,80.98 A 31,31 0 0,1 35.45,77.37 L 40.61,67.66 A 20,20 0 0,0 49.30,69.99 Z" fill="hsl(180,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 33.57,76.29 A 31,31 0 0,1 23.71,66.43 L 33.04,60.60 A 20,20 0 0,0 39.40,66.96 Z" fill="hsl(210,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 22.63,64.55 A 31,31 0 0,1 19.02,51.08 L 30.01,50.70 A 20,20 0 0,0 32.34,59.39 Z" fill="hsl(240,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 19.02,48.92 A 31,31 0 0,1 22.63,35.45 L 32.34,40.61 A 20,20 0 0,0 30.01,49.30 Z" fill="hsl(270,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 23.71,33.57 A 31,31 0 0,1 33.57,23.71 L 39.40,33.04 A 20,20 0 0,0 33.04,39.40 Z" fill="hsl(300,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <path d="M 35.45,22.63 A 31,31 0 0,1 48.92,19.02 L 49.30,30.01 A 20,20 0 0,0 40.61,32.34 Z" fill="hsl(330,35%,68%)" stroke="#f5f0e8" stroke-width="1.2"/>
+  <!-- Centre circle -->
+  <circle cx="50" cy="50" r="18" fill="#f5f0e8" stroke="#c8bfaa" stroke-width="1"/>
+  <!-- H glyph -->
+  <text x="50" y="56.5" text-anchor="middle" font-family="Georgia,serif"
+        font-size="20" font-weight="400" fill="#8b2020">H</text>
+</svg>
