@@ -356,11 +356,11 @@ h1 {
 </div>
 
 <p class="footnote">
-  7th shown in <em>(brackets)</em> · Figured bass: root = plain; 1st inv = ⁶; 2nd inv = ⁶₄ &nbsp;|&nbsp;
-  With 7th: root = ⁷; 1st inv = ⁶₅; 2nd inv = ⁴₃; 3rd inv = ⁴₂ &nbsp;|&nbsp;
-  Dim. 7th: °⁷ °⁶₅ °⁴₃ °⁴₂ &nbsp;|&nbsp;
-  Aug. 6ths: It⁺⁶ (b̂6–^1–♯^4) · Fr⁴₃ adds ^2 · Ger⁶₅ adds b̂3 &nbsp;|&nbsp;
-  CT chords: dim7 or dom7 whose notes surround a held common tone (shown in chord name) &nbsp;|&nbsp; Underlined = bass
+  <strong>How to read this:</strong> Click a chord to expand its inversions. The <strong>bass note</strong> (underlined in red) tells you which note is at the bottom of the chord — this determines the Roman numeral suffix. The <strong>chord tones</strong> column shows the notes of the chord in root-position order; the 7th is shown in <em>italics (7th: X)</em> and is optional — include it for a richer sound, omit it for a plain triad. In the <strong>3rd inversion</strong>, the 7th is in the bass and is underlined like any other bass note.
+  <br><br>
+  <strong>Figured bass suffixes:</strong> No suffix = root position · ⁶ = 1st inversion (3rd in bass) · ⁶₄ = 2nd inversion (5th in bass) · ⁷ = root position 7th chord · ⁶₅ = 1st inv. 7th · ⁴₃ = 2nd inv. 7th · ⁴₂ = 3rd inv. 7th (7th in bass) · °⁷ °⁶₅ °⁴₃ °⁴₂ = diminished 7th and its inversions.
+  <br><br>
+  <strong>Special chords:</strong> Aug. 6th chords (It⁺⁶, Fr⁴₃, Ger⁶₅) have b̂6 in the bass and ♯^4 as the top note, creating an augmented 6th interval that resolves outward to the dominant. CT chords share a common tone with the target harmony — the sustained note is shown in the chord name.
 </p>
 </div>
 
@@ -417,10 +417,15 @@ const FB = {
   ],
 };
 
-// One row per inversion position. notes3 = triad, note7 = optional 7th string.
+// One row per inversion position.
+// allNotes = triad in root-position order always, 7th appended last if present.
+// bassNote = the note in the bass for that inversion (drives the RN suffix).
+// The 7th is identified by value (note7) not by position, so it's always bracketed
+// regardless of which inversion we're in.
 function inversions(rn, fbType, notes3, note7) {
   const rows = FB[fbType] || FB.triad7;
-  const notes4 = note7 ? [...notes3, note7] : notes3;
+  // Root-position triad + optional 7th — this order never changes across rows
+  const rootPosNotes = note7 ? [...notes3, note7] : [...notes3];
   const result = [];
 
   rows.forEach((lb, i) => {
@@ -429,17 +434,14 @@ function inversions(rn, fbType, notes3, note7) {
 
     const suf      = note7 ? lb.suf7 : lb.sufTriad;
     const bassNote = i < 3 ? notes3[i] : note7;
-    const src      = note7 ? notes4 : notes3;
-    const rotated  = [...src.slice(i % src.length), ...src.slice(0, i % src.length)];
 
     result.push({
-      inv: lb.inv,
+      inv:        lb.inv,
       suf,
-      rnDisplay: rn + suf,
+      rnDisplay:  rn + suf,
       bassNote,
-      triadRotated: [...notes3.slice(i % notes3.length), ...notes3.slice(0, i % notes3.length)],
-      allNotes: rotated,
-      note7: note7 || null,
+      allNotes:   rootPosNotes,   // always root-position order
+      note7:      note7 || null,
       note7inBass: i === 3,
     });
   });
@@ -987,7 +989,7 @@ function renderChords() {
     const hdr = document.createElement('div');
     hdr.className = 'chord-header';
     const notesSummary = ch.note7
-      ? ch.triadNotes.join(' – ') + ' <span class="note-seventh">(+' + ch.note7 + ')</span>'
+      ? ch.triadNotes.join(' – ') + ' <span class="note-seventh">(7th: ' + ch.note7 + ')</span>'
       : ch.triadNotes.join(' – ');
     hdr.innerHTML = `
       <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${ch.rn}</span>
@@ -1004,19 +1006,25 @@ function renderChords() {
     const isFixed = ch.fbType === 'fixed';
     tbl.innerHTML = isFixed
       ? `<thead><tr><th>Bass</th><th>Chord name</th><th>Chord tones</th></tr></thead>`
-      : `<thead><tr><th>Bass</th><th>Roman numeral</th><th>Inversion</th><th>Chord tones (bass → upper)</th></tr></thead>`;
+      : `<thead><tr><th>Bass</th><th>Roman numeral</th><th>Inversion</th><th>Chord tones</th></tr></thead>`;
 
     const tbody = document.createElement('tbody');
     ch.inversions.forEach(inv => {
       const tr = document.createElement('tr');
-      // Build note HTML: bass underlined, 7th in brackets, others plain
-      const nHtml = inv.allNotes.map((n, ni) => {
-        const isBass   = ni === 0;
-        // 7th is the last note when note7 is present and not in bass
-        const is7th    = inv.note7 && !inv.note7inBass && ni === inv.allNotes.length - 1;
-        // when 7th is in bass it's ni===0 (already handled as bass)
-        if (isBass) return `<span class="bass-hl">${n}</span>`;
-        if (is7th)  return `<span class="note-seventh">(${n})</span>`;
+      // Chord tones: bass underlined, 7th labelled "(7th: X)" unless it's the bass note
+      const nHtml = inv.allNotes.map(n => {
+        if (n === inv.bassNote && !inv.note7inBass) {
+          // bass note from the triad — underline it
+          return `<span class="bass-hl">${n}</span>`;
+        }
+        if (inv.note7inBass && n === inv.note7) {
+          // 7th is the bass in 3rd inversion — underline it, no brackets
+          return `<span class="bass-hl">${n}</span>`;
+        }
+        if (inv.note7 && n === inv.note7 && !inv.note7inBass) {
+          // 7th is not the bass — label it clearly
+          return `<span class="note-seventh">(7th: ${n})</span>`;
+        }
         return n;
       }).join(' ');
 
@@ -1124,11 +1132,13 @@ function findChord() {
     matchedInvs.forEach(inv => {
       const line = document.createElement('p');
       line.className = 'result-inv-line';
-      const nHtml = inv.allNotes.map((n, ni) => {
-        const isBass = ni === 0;
-        const isSeventh = inv.withSeventh && ni === inv.allNotes.length - 1 && !isBass;
-        if (isBass) return `<span class="bass-hl">${n}</span>`;
-        if (isSeventh) return `<span class="note-seventh">(${n})</span>`;
+      const nHtml = inv.allNotes.map(n => {
+        if (n === inv.bassNote && !inv.note7inBass)
+          return `<span class="bass-hl">${n}</span>`;
+        if (inv.note7inBass && n === inv.note7)
+          return `<span class="bass-hl">${n}</span>`;
+        if (inv.note7 && n === inv.note7 && !inv.note7inBass)
+          return `<span class="note-seventh">(7th: ${n})</span>`;
         return n;
       }).join(' ');
       line.innerHTML = `<strong>${inv.rnDisplay}</strong> — ${inv.inv} &nbsp;·&nbsp; ${nHtml}`;
