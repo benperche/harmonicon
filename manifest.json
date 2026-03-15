@@ -1,8 +1,8 @@
 {
-  "name": "Harmonia",
-  "short_name": "Harmonia",
+  "name": "Harmonicon",
+  "short_name": "Harmonicon",
   "description": "Roman numeral harmony reference for tonal classical works",
-  "start_url": "/harmonia/",
+  "start_url": "/harmonicon/",
   "display": "standalone",
   "background_color": "#f5f0e8",
   "theme_color": "#8b2020",

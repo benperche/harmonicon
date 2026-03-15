@@ -1,10 +1,10 @@
-# Harmonia — Roman Numeral Harmony Reference
+# Harmonicon — Roman Numeral Harmony Reference
 
 > *Vibecoded using [Claude](https://claude.ai) by Anthropic.*
 
 A single-page web app for labelling harmonies in tonal classical works using Roman numerals and figured bass notation. Built to run entirely in the browser with no dependencies — just open `index.html`.
 
-**Live demo:** `https://benperche.github.io/harmonia/`
+**Live demo:** `https://benperche.github.io/harmonicon/`
 
 ## Features
 
