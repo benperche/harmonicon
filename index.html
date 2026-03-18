@@ -419,6 +419,59 @@ const FL = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
 
 function nn(pc, sharp) { return sharp ? SH[((pc%12)+12)%12] : FL[((pc%12)+12)%12]; }
 
+// Letter names in order, and their natural pitch classes
+const LETTERS      = ['C','D','E','F','G','A','B'];
+const LETTER_PC    = [  0,  2,  4,  5,  7,  9, 11];
+
+// Given a scale root letter index (0=C..6=B) and a scale pitch class array,
+// build a map: pitchClass → spelled note name, based on diatonic thirds.
+// This ensures e.g. in D minor the leading tone is C♯ not D♭.
+function buildDiatonicSpelling(rootLetterIdx, scalePcs) {
+  // The 7 scale degrees are spelled on consecutive letter names
+  const spelling = {}; // pc → note name
+  for (let deg = 0; deg < 7; deg++) {
+    const letterIdx = (rootLetterIdx + deg) % 7;
+    const letter    = LETTERS[letterIdx];
+    const naturalPc = LETTER_PC[letterIdx];
+    const actualPc  = ((scalePcs[deg] % 12) + 12) % 12;
+    const diff      = ((actualPc - naturalPc + 12) % 12);
+    let name;
+    if      (diff === 0)  name = letter;
+    else if (diff === 1)  name = letter + '♯';
+    else if (diff === 2)  name = letter + '𝄪'; // double sharp (rare)
+    else if (diff === 11) name = letter + '♭';
+    else if (diff === 10) name = letter + '𝄫'; // double flat (rare)
+    else                  name = nn(actualPc, true); // fallback
+    spelling[actualPc] = name;
+  }
+  return spelling;
+}
+
+// Root letter index from a key's pitch class and mode
+// We look up the COF entry's name letter to get the right index.
+function rootLetterIdx(keyName) {
+  const base = keyName.replace(/[♯♭]/g, '');
+  return LETTERS.indexOf(base);
+}
+
+// Spell a pitch class using a diatonic spelling map, falling back to chromatic.
+// For chromatic alterations not in the scale (like the leading tone ♯7 in minor),
+// we derive the spelling from the scale's 7th degree + sharp.
+function spellPc(pc, spelling, scale7thPc, scale7thName) {
+  const norm = ((pc % 12) + 12) % 12;
+  if (spelling[norm] !== undefined) return spelling[norm];
+  // Leading tone: one semitone above the 7th degree
+  const lt = ((scale7thPc + 1) % 12);
+  if (norm === lt) {
+    // Raise the 7th degree's letter by a sharp
+    const base = scale7thName.replace(/[♯♭]/g, '');
+    const existing = scale7thName.includes('♭') ? '' : '♯';
+    return base + (scale7thName.includes('♭') ? '' : '♯');
+  }
+  // Fallback for other chromatic tones (e.g. in aug6/CT chords — those handle spelling themselves)
+  return null;
+}
+
 const COF_MAJ = [
   {name:'C', pc:0, sharps:true},{name:'G', pc:7, sharps:true},
   {name:'D', pc:2, sharps:true},{name:'A', pc:9, sharps:true},
@@ -505,30 +558,75 @@ function inversions(rn, fbType, notes3, note7) {
 }
 
 // ═══════════════════ CHORD BUILDER
-// Every chord is defined with its triad intervals + optional 7th interval.
-// The 7th note is shown in brackets and generates extra inversion rows.
 
 function getDiatonicChords(rootPc, mode, useSharp) {
   const scale = mode === 'major' ? [0,2,4,5,7,9,11] : [0,2,3,5,7,8,10];
-  const pcs = scale.map(s => (rootPc + s) % 12);
-  const lt = (rootPc + 11) % 12; // leading tone (raised 7th)
+  const pcs   = scale.map(s => (rootPc + s) % 12);
 
-  // Build a chord object.
-  // seventh = semitone interval for the 7th above chord root, or null.
-  // useSharpFor7th: override the key's enharmonic preference for the 7th note.
-  //   - Minor 7th (interval 10, dom7/triad7) is a flattened degree → always spell flat
-  //   - Diminished 7th (interval 9) is doubly-flattened → always spell flat
-  //   - Major 7th (interval 11) is a raised degree → follow key spelling
+  // Build diatonic spelling from the key name
+  const cofArr = mode === 'major' ? COF_MAJ : COF_MIN;
+  const keyEntry = cofArr.find(k => ((k.pc % 12 + 12) % 12) === ((rootPc % 12 + 12) % 12)) || cofArr[0];
+  const rli = rootLetterIdx(keyEntry.name);
+  const dSpell = buildDiatonicSpelling(rli, pcs);
+
+  // The natural 7th degree and leading tone
+  const scale7thPc   = pcs[6];
+  const scale7thName = dSpell[((scale7thPc % 12) + 12) % 12] || nn(scale7thPc, useSharp);
+  const ltPc         = (rootPc + 11) % 12; // leading tone = raised 7th
+
+  // Spell a pc using diatonic map; for leading tone use raised-7th spelling;
+  // for other chromatic notes fall back to key's sharp/flat preference.
+  function spell(pc) {
+    const norm = ((pc % 12) + 12) % 12;
+    if (dSpell[norm] !== undefined) return dSpell[norm];
+    // Leading tone in minor (raised ♮7 → ♯7)
+    const scale7norm = ((scale7thPc % 12) + 12) % 12;
+    const ltNorm     = ((ltPc % 12) + 12) % 12;
+    if (norm === ltNorm) {
+      // Raise the 7th degree letter
+      const base = scale7thName.replace(/[♯♭𝄪𝄫]/g, '');
+      if (scale7thName.includes('♭')) return base;       // ♭7 → ♮7
+      if (scale7thName.includes('♯')) return base + '𝄪'; // ♯7 → 𝄪7 (very rare)
+      return base + '♯';                                  // ♮7 → ♯7 (normal case)
+    }
+    return nn(norm, useSharp);
+  }
+
+  // Spell the minor 7th (interval 10) above a root pc, always as flat
+  function spellMin7(rootP) {
+    const p = ((rootP + 10) % 12 + 12) % 12;
+    // If it's in the diatonic scale, use that spelling
+    if (dSpell[p] !== undefined) return dSpell[p];
+    return nn(p, false); // otherwise flat spelling
+  }
+
+  // Spell the major 7th (interval 11) above a root pc
+  function spellMaj7(rootP) {
+    const p = ((rootP + 11) % 12 + 12) % 12;
+    if (dSpell[p] !== undefined) return dSpell[p];
+    // Leading tone case
+    if (((p % 12 + 12) % 12) === ((ltPc % 12 + 12) % 12)) return spell(p);
+    return nn(p, useSharp);
+  }
+
+  // Spell the diminished 7th (interval 9) above a root pc, always flat
+  function spellDim7(rootP) {
+    const p = ((rootP + 9) % 12 + 12) % 12;
+    if (dSpell[p] !== undefined) return dSpell[p];
+    return nn(p, false);
+  }
+
+  // Build a chord: triadIvs are semitone intervals, notes spelled diatonically
   function chord(rn, name, rootP, triadIvs, seventh, fbType, min, section) {
-    const triadPcs   = triadIvs.map(iv => (rootP + iv) % 12);
-    const triadNotes = triadPcs.map(p => nn(p, useSharp));
+    const triadPcs   = triadIvs.map(iv => ((rootP + iv) % 12 + 12) % 12);
+    const triadNotes = triadPcs.map(p => spell(p));
     let note7 = null, note7Pc = null;
     if (seventh !== null) {
-      note7Pc = (rootP + seventh) % 12;
-      // Minor 7th (10) and diminished 7th (9) are lowered intervals → flat spelling
-      // Major 7th (11) follows the key spelling
-      const spell7flat = (seventh === 10 || seventh === 9);
-      note7 = nn(note7Pc, spell7flat ? false : useSharp);
+      note7Pc = ((rootP + seventh) % 12 + 12) % 12;
+      if      (seventh === 10) note7 = spellMin7(rootP);
+      else if (seventh === 11) note7 = spellMaj7(rootP);
+      else if (seventh === 9)  note7 = spellDim7(rootP);
+      else                     note7 = spell(note7Pc);
     }
     const allPcs = note7Pc !== null ? [...triadPcs, note7Pc] : triadPcs;
     return {
@@ -541,56 +639,71 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     };
   }
 
-  const diatonic = [];
+  // For secondary dominants the chord tones are chromatic (outside the key),
+  // so we use a local diatonic spelling built around the dominant root.
+  function secondaryChord(rn, name, domRootPc, targetLetterIdx) {
+    // Dominant of target: major triad [0,4,7], min7 [0,4,7,10]
+    // Spell using a mini major-scale from domRootPc
+    const domScale = [0,4,7,10].map(iv => ((domRootPc + iv) % 12 + 12) % 12);
+    // The dominant root's letter = a perfect 5th below the target = target letter - 4 steps (or +3)
+    const domLetterIdx = ((targetLetterIdx + 4) % 7); // a 5th above = 4 letter steps up
+    const domSpell = buildDiatonicSpelling(domLetterIdx, [0,4,7,10].map(iv => ((domRootPc+iv)%12+12)%12));
+    function spellSec(pc) {
+      const norm = ((pc%12)+12)%12;
+      return domSpell[norm] !== undefined ? domSpell[norm] : nn(norm, true);
+    }
+    const triadPcs   = [0,4,7].map(iv => ((domRootPc+iv)%12+12)%12);
+    const triadNotes = triadPcs.map(p => spellSec(p));
+    const note7Pc    = ((domRootPc+10)%12+12)%12;
+    // Minor 7th of secondary dominant: always flat spelling
+    const note7      = nn(note7Pc, false);
+    const allPcs     = [...triadPcs, note7Pc];
+    return {
+      rn, name, rootP: domRootPc,
+      chordPcs: allPcs, triadNotes, note7,
+      chordNotes: [...triadNotes, note7],
+      inversions: inversions(rn, 'dom7', triadNotes, note7),
+      fbType: 'dom7', min: false, section: 'secondary',
+    };
+  }
+
+  const diatonic  = [];
   const secondary = [];
 
   if (mode === 'major') {
-    // Diatonic 7ths: I maj7=11, ii min7=10, iii min7=10, IV maj7=11,
-    //                V dom7=10, vi min7=10, vii° half-dim7=9 / full dim7=9
     diatonic.push(
-      chord('I',    'Tonic',                pcs[0], [0,4,7], 11, 'triad7', false, 'diatonic'),
-      chord('ii',   'Supertonic',           pcs[1], [0,3,7], 10, 'triad7', true,  'diatonic'),
-      chord('iii',  'Mediant',              pcs[2], [0,3,7], 10, 'triad7', true,  'diatonic'),
-      chord('IV',   'Subdominant',          pcs[3], [0,4,7], 11, 'triad7', false, 'diatonic'),
-      chord('V',    'Dominant',             pcs[4], [0,4,7], 10, 'dom7',   false, 'diatonic'),
-      chord('vi',   'Submediant',           pcs[5], [0,3,7], 10, 'triad7', true,  'diatonic'),
-      chord('vii°', 'Leading-tone',         lt,     [0,3,6],  9, 'dim7',   true,  'diatonic'),
+      chord('I',    'Tonic',          pcs[0], [0,4,7], 11, 'triad7', false, 'diatonic'),
+      chord('ii',   'Supertonic',     pcs[1], [0,3,7], 10, 'triad7', true,  'diatonic'),
+      chord('iii',  'Mediant',        pcs[2], [0,3,7], 10, 'triad7', true,  'diatonic'),
+      chord('IV',   'Subdominant',    pcs[3], [0,4,7], 11, 'triad7', false, 'diatonic'),
+      chord('V',    'Dominant',       pcs[4], [0,4,7], 10, 'dom7',   false, 'diatonic'),
+      chord('vi',   'Submediant',     pcs[5], [0,3,7], 10, 'triad7', true,  'diatonic'),
+      chord('vii°', 'Leading-tone',   ltPc,   [0,3,6],  9, 'dim7',   true,  'diatonic'),
     );
-    [
-      {of:'ii',  targetIdx:1},
-      {of:'iii', targetIdx:2},
-      {of:'IV',  targetIdx:3},
-      {of:'V',   targetIdx:4},
-      {of:'vi',  targetIdx:5},
-    ].forEach(s => {
-      const domRoot = (pcs[s.targetIdx] + 7) % 12;
-      secondary.push(
-        chord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot, [0,4,7], 10, 'dom7', false, 'secondary'),
-      );
+    // Letter indices of scale degrees for secondary dominant spelling
+    const degLetters = [0,1,2,3,4,5,6].map(d => (rli + d) % 7);
+    [{of:'ii', d:1},{of:'iii',d:2},{of:'IV',d:3},{of:'V',d:4},{of:'vi',d:5}].forEach(s => {
+      const domRoot = ((pcs[s.d] + 7) % 12 + 12) % 12;
+      secondary.push(secondaryChord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot, degLetters[s.d]));
     });
+
   } else {
-    // Natural minor diatonic 7ths
+    // Natural minor + harmonic minor leading tone
     diatonic.push(
-      chord('i',    'Tonic',                    pcs[0], [0,3,7], 10, 'triad7', true,  'diatonic'),
-      chord('ii°',  'Supertonic dim.',           pcs[1], [0,3,6],  9, 'dim7',   true,  'diatonic'),
-      chord('III',  'Mediant',                   pcs[2], [0,4,7], 11, 'triad7', false, 'diatonic'),
-      chord('iv',   'Subdominant',               pcs[3], [0,3,7], 10, 'triad7', true,  'diatonic'),
-      chord('V',    'Dominant (harm. minor)',    pcs[4], [0,4,7], 10, 'dom7',   false, 'diatonic'),
-      chord('VI',   'Submediant',                pcs[5], [0,4,7], 11, 'triad7', false, 'diatonic'),
-      chord('VII',  'Subtonic',                  pcs[6], [0,4,7], 10, 'triad7', false, 'diatonic'),
-      chord('vii°', 'Leading-tone dim. (harm.)', lt,     [0,3,6],  9, 'dim7',   true,  'diatonic'),
+      chord('i',    'Tonic',                    pcs[0], [0,3,7],  10, 'triad7', true,  'diatonic'),
+      chord('ii°',  'Supertonic dim.',           pcs[1], [0,3,6],   9, 'dim7',   true,  'diatonic'),
+      chord('III',  'Mediant',                   pcs[2], [0,4,7],  11, 'triad7', false, 'diatonic'),
+      chord('iv',   'Subdominant',               pcs[3], [0,3,7],  10, 'triad7', true,  'diatonic'),
+      chord('v',    'Minor dominant (nat.)',      pcs[4], [0,3,7],  10, 'triad7', true,  'diatonic'),
+      chord('V',    'Dominant (harm. minor)',     pcs[4], [0,4,7],  10, 'dom7',   false, 'diatonic'),
+      chord('VI',   'Submediant',                pcs[5], [0,4,7],  11, 'triad7', false, 'diatonic'),
+      chord('VII',  'Subtonic',                  pcs[6], [0,4,7],  10, 'triad7', false, 'diatonic'),
+      chord('vii°', 'Leading-tone dim. (harm.)', ltPc,   [0,3,6],   9, 'dim7',   true,  'diatonic'),
     );
-    [
-      {of:'III', targetPc: pcs[2]},
-      {of:'iv',  targetPc: pcs[3]},
-      {of:'V',   targetPc: pcs[4]},
-      {of:'VI',  targetPc: pcs[5]},
-      {of:'VII', targetPc: pcs[6]},
-    ].forEach(s => {
-      const domRoot = (s.targetPc + 7) % 12;
-      secondary.push(
-        chord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot, [0,4,7], 10, 'dom7', false, 'secondary'),
-      );
+    const degLetters = [0,1,2,3,4,5,6].map(d => (rli + d) % 7);
+    [{of:'III',d:2},{of:'iv',d:3},{of:'V',d:4},{of:'VI',d:5},{of:'VII',d:6}].forEach(s => {
+      const domRoot = ((pcs[s.d] + 7) % 12 + 12) % 12;
+      secondary.push(secondaryChord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot, degLetters[s.d]));
     });
   }
 
