@@ -425,7 +425,7 @@ h1 {
   <br><br>
   <strong>Figured bass suffixes:</strong> No suffix = root position · ⁶ = 1st inversion (3rd in bass) · ⁶₄ = 2nd inversion (5th in bass) · ⁷ = root position 7th chord · ⁶₅ = 1st inv. 7th · ⁴₃ = 2nd inv. 7th · ⁴₂ = 3rd inv. 7th (7th in bass) · °⁷ °⁶₅ °⁴₃ °⁴₂ = diminished 7th and its inversions.
   <br><br>
-  <strong>Special chords:</strong> Aug. 6th chords (It⁺⁶, Fr⁴₃, Ger⁶₅) have b̂6 in the bass and ♯^4 as the top note, creating an augmented 6th interval that resolves outward to the dominant. CT chords share a common tone with the target harmony — the sustained note is shown in the chord name.
+  <strong>Special chords:</strong> Aug. 6th chords (It⁺⁶, Fr⁴₃, Ger⁶₅) have b̂6 in the bass and ♯^4 as the top note, creating an augmented 6th interval that resolves outward to the dominant. The <strong>Neapolitan (N⁶)</strong> is a major triad on ♭^2, almost always in 1st inversion, functioning as a pre-dominant. <strong>Borrowed chords</strong> are taken from the parallel minor (in a major key) or parallel major (in a minor key). CT chords share a common tone with the target harmony — the sustained note is shown in the chord name.
   <br><br>
   <span style="color:var(--ink3)">Harmonicon <span id="footer-version"></span> · Created by Ben Perche with <a href="https://claude.ai" style="color:var(--ink3)">Claude.ai</a></span>
 </p>
@@ -439,7 +439,7 @@ h1 {
 //   MINOR: new chords, tabs, or notable improvements
 //   PATCH: bug fixes, spelling corrections, small UI tweaks
 // ═══════════════════════════════════════════════════════════════════
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 // ═══════════════════ PITCH CLASSES & SPELLINGS
 
 const SH = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
@@ -667,24 +667,37 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     };
   }
 
-  // For secondary dominants the chord tones are chromatic (outside the key),
-  // so we use a local diatonic spelling built around the dominant root.
-  function secondaryChord(rn, name, domRootPc, targetLetterIdx) {
-    // Dominant of target: major triad [0,4,7], min7 [0,4,7,10]
-    // Spell using a mini major-scale from domRootPc
-    const domScale = [0,4,7,10].map(iv => ((domRootPc + iv) % 12 + 12) % 12);
-    // The dominant root's letter = a perfect 5th below the target = target letter - 4 steps (or +3)
-    const domLetterIdx = ((targetLetterIdx + 4) % 7); // a 5th above = 4 letter steps up
-    const domSpell = buildDiatonicSpelling(domLetterIdx, [0,4,7,10].map(iv => ((domRootPc+iv)%12+12)%12));
-    function spellSec(pc) {
-      const norm = ((pc%12)+12)%12;
-      return domSpell[norm] !== undefined ? domSpell[norm] : nn(norm, true);
+  // For secondary dominants, build a proper major scale from the dominant root
+  // and derive spelling from that — same approach as the main key.
+  function secondaryChord(rn, name, domRootPc) {
+    // Major scale intervals from the dominant root
+    const domScaleIntervals = [0,2,4,5,7,9,11];
+    const domScalePcs = domScaleIntervals.map(iv => ((domRootPc + iv) % 12 + 12) % 12);
+
+    // Determine the dominant root's letter name.
+    // First check if it's already in the key's diatonic spelling (e.g. V/V in C = D).
+    // If not (it's chromatic), use sharp spelling for sharp keys, flat for flat keys.
+    const domRootNorm = ((domRootPc % 12) + 12) % 12;
+    let domRootName;
+    if (dSpell[domRootNorm] !== undefined) {
+      domRootName = dSpell[domRootNorm];
+    } else {
+      // Chromatic root: use the key's sharp/flat preference
+      domRootName = nn(domRootNorm, useSharp);
     }
-    const triadPcs   = [0,4,7].map(iv => ((domRootPc+iv)%12+12)%12);
+    const domRli = rootLetterIdx(domRootName);
+    const domSpell = buildDiatonicSpelling(domRli, domScalePcs);
+
+    function spellSec(pc) {
+      const norm = ((pc % 12) + 12) % 12;
+      return domSpell[norm] !== undefined ? domSpell[norm] : nn(norm, useSharp);
+    }
+
+    const triadPcs   = [0,4,7].map(iv => ((domRootPc + iv) % 12 + 12) % 12);
     const triadNotes = triadPcs.map(p => spellSec(p));
-    const note7Pc    = ((domRootPc+10)%12+12)%12;
-    // Minor 7th of secondary dominant: always flat spelling
-    const note7      = nn(note7Pc, false);
+    const note7Pc    = ((domRootPc + 10) % 12 + 12) % 12;
+    // The minor 7th = scale degree 4 of the dominant's own major scale (always in domSpell)
+    const note7      = domSpell[note7Pc] !== undefined ? domSpell[note7Pc] : nn(note7Pc, false);
     const allPcs     = [...triadPcs, note7Pc];
     return {
       rn, name, rootP: domRootPc,
@@ -712,7 +725,7 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     const degLetters = [0,1,2,3,4,5,6].map(d => (rli + d) % 7);
     [{of:'ii', d:1},{of:'iii',d:2},{of:'IV',d:3},{of:'V',d:4},{of:'vi',d:5}].forEach(s => {
       const domRoot = ((pcs[s.d] + 7) % 12 + 12) % 12;
-      secondary.push(secondaryChord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot, degLetters[s.d]));
+      secondary.push(secondaryChord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot));
     });
 
   } else {
@@ -731,7 +744,7 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     const degLetters = [0,1,2,3,4,5,6].map(d => (rli + d) % 7);
     [{of:'III',d:2},{of:'iv',d:3},{of:'V',d:4},{of:'VI',d:5},{of:'VII',d:6}].forEach(s => {
       const domRoot = ((pcs[s.d] + 7) % 12 + 12) % 12;
-      secondary.push(secondaryChord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot, degLetters[s.d]));
+      secondary.push(secondaryChord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot));
     });
   }
 
@@ -860,7 +873,110 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     });
   }
 
-  return [...diatonic, ...secondary, ...aug6, ...ct];
+  // ── Neapolitan Sixth ─────────────────────────────────────────────────────
+  // The Neapolitan (N⁶ or ♭II⁶) is a major triad built on the flattened 2nd
+  // degree, used almost exclusively in 1st inversion (hence the ⁶).
+  // Notes: ♭^2 – ♭^4 – ♭^6, with ♭^4 in the bass.
+  // All three notes are spelled as flats regardless of key.
+  // Functions as a pre-dominant chord (similar to iv or II).
+
+  const neapolitan = [];
+  {
+    const b2pc = (rootPc + 1) % 12;  // ♭^2
+    const b4pc = (rootPc + 5) % 12;  // ♭^4 (= ^4, same as diatonic in major)
+    const b6pc = (rootPc + 8) % 12;  // ♭^6
+
+    // Always spell with flats
+    const b2name = nn(b2pc, false);
+    const b4name = nn(b4pc, false);
+    const b6name = nn(b6pc, false);
+
+    const nNotes = [b2name, b4name, b6name];
+    // 1st inversion: ♭^4 in bass
+    neapolitan.push({
+      rn: 'N⁶', name: 'Neapolitan 6th (♭II⁶)',
+      triadNotes: nNotes, note7: null,
+      chordPcs: [b2pc, b4pc, b6pc], chordNotes: nNotes,
+      inversions: [
+        { inv:'Root position', suf:'', rnDisplay:'N', bassNote: b2name,
+          triadRotated: nNotes, allNotes: nNotes, note7: null, note7inBass: false },
+        { inv:'1st inversion (typical)', suf:'⁶', rnDisplay:'N⁶', bassNote: b4name,
+          triadRotated: [b4name, b6name, b2name], allNotes: [b4name, b6name, b2name], note7: null, note7inBass: false },
+      ],
+      fbType: 'fixed', min: false, section: 'neapolitan',
+    });
+  }
+
+  // ── Borrowed Chords (Modal Mixture) ──────────────────────────────────────
+  // Borrowed chords are taken from the parallel minor (in a major key) or
+  // parallel major (in a minor key). Only the most common ones are listed.
+  // Spelling follows the parallel minor/major scale — borrowed degrees use flats.
+
+  const borrowed = [];
+  {
+    // Build parallel minor/major scale for borrowing
+    const parallelScale = mode === 'major'
+      ? [0,2,3,5,7,8,10]   // parallel natural minor
+      : [0,2,4,5,7,9,11];  // parallel major
+    const pPcs = parallelScale.map(s => (rootPc + s) % 12);
+
+    // Spelling for the parallel scale
+    const pSpell = buildDiatonicSpelling(rli, pPcs);
+    function spellP(pc) {
+      const norm = ((pc%12)+12)%12;
+      return pSpell[norm] !== undefined ? pSpell[norm] : nn(norm, false);
+    }
+
+    if (mode === 'major') {
+      // Common borrows from parallel minor into major:
+      // iv  — minor subdominant (pcs[3] = ^4, minor triad)
+      // ♭VII — subtonic major triad (pcs[6] = ♭^7)
+      // ♭VI  — flat submediant major triad (pcs[5] = ♭^6)
+      // ♭III — flat mediant major triad (pcs[2] = ♭^3)
+      // ii°  — supertonic diminished (pcs[1] = ^2, dim triad from minor)
+
+      const borrowDefs = [
+        { rn:'iv',   name:'Minor subdominant (borrowed)',  rootP: pPcs[3], ivs:[0,3,7], min:true  },
+        { rn:'♭VII', name:'Flat subtonic (borrowed)',      rootP: pPcs[6], ivs:[0,4,7], min:false },
+        { rn:'♭VI',  name:'Flat submediant (borrowed)',    rootP: pPcs[5], ivs:[0,4,7], min:false },
+        { rn:'♭III', name:'Flat mediant (borrowed)',       rootP: pPcs[2], ivs:[0,4,7], min:false },
+        { rn:'ii°',  name:'Supertonic dim. (borrowed)',    rootP: pPcs[1], ivs:[0,3,6], min:true  },
+      ];
+      borrowDefs.forEach(d => {
+        const tPcs   = d.ivs.map(iv => ((d.rootP + iv) % 12 + 12) % 12);
+        const tNotes = tPcs.map(p => spellP(p));
+        borrowed.push({
+          rn: d.rn, name: d.name, rootP: d.rootP,
+          chordPcs: tPcs, triadNotes: tNotes, note7: null, chordNotes: tNotes,
+          inversions: inversions(d.rn, 'triad7', tNotes, null),
+          fbType: 'triad7', min: d.min, section: 'borrowed',
+        });
+      });
+    } else {
+      // Common borrows from parallel major into minor:
+      // IV  — major subdominant
+      // I   — tonic major (Picardy third context, or just major I)
+      // ♭VII is already diatonic in minor, so skip
+
+      const borrowDefs = [
+        { rn:'IV',  name:'Major subdominant (borrowed)',  rootP: pPcs[3], ivs:[0,4,7], min:false },
+        { rn:'II',  name:'Major supertonic (borrowed)',   rootP: pPcs[1], ivs:[0,4,7], min:false },
+        { rn:'♭VI', name:'Flat submediant (borrowed)',    rootP: pPcs[5], ivs:[0,4,7], min:false },
+      ];
+      borrowDefs.forEach(d => {
+        const tPcs   = d.ivs.map(iv => ((d.rootP + iv) % 12 + 12) % 12);
+        const tNotes = tPcs.map(p => spellP(p));
+        borrowed.push({
+          rn: d.rn, name: d.name, rootP: d.rootP,
+          chordPcs: tPcs, triadNotes: tNotes, note7: null, chordNotes: tNotes,
+          inversions: inversions(d.rn, 'triad7', tNotes, null),
+          fbType: 'triad7', min: d.min, section: 'borrowed',
+        });
+      });
+    }
+  }
+
+  return [...diatonic, ...secondary, ...aug6, ...neapolitan, ...borrowed, ...ct];
 }
 
 // ═══════════════════ STATE
@@ -1183,10 +1299,12 @@ function renderChords() {
       const lbl = document.createElement('div');
       lbl.className = 'chord-section-label';
       lbl.textContent = {
-        diatonic:   'Diatonic Chords',
-        secondary:  'Secondary Dominants',
-        aug6:       'Augmented Sixth Chords',
-        ct:         'Common Tone Chords',
+        diatonic:    'Diatonic Chords',
+        secondary:   'Secondary Dominants',
+        aug6:        'Augmented Sixth Chords',
+        neapolitan:  'Neapolitan',
+        borrowed:    'Borrowed Chords (Modal Mixture)',
+        ct:          'Common Tone Chords',
       }[ch.section] || ch.section;
       grid.appendChild(lbl);
     }
@@ -1336,10 +1454,12 @@ function identifyFromBass() {
   // Group by section
   const sections = ['diatonic', 'secondary', 'aug6', 'ct'];
   const sectionLabels = {
-    diatonic:  'Diatonic Chords',
-    secondary: 'Secondary Dominants',
-    aug6:      'Augmented Sixth Chords',
-    ct:        'Common Tone Chords',
+    diatonic:   'Diatonic Chords',
+    secondary:  'Secondary Dominants',
+    aug6:       'Augmented Sixth Chords',
+    neapolitan: 'Neapolitan',
+    borrowed:   'Borrowed Chords (Modal Mixture)',
+    ct:         'Common Tone Chords',
   };
 
   let lastSection = null;
