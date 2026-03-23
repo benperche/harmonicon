@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Harmonicon — Roman Numeral Reference</title>
+<title>Harmonicon — Roman Numerals and Figured Bass Harmony Reference</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="manifest" href="manifest.json">
@@ -305,7 +305,7 @@ h1 {
 #cof-main, #cof-lookup, #cof-bass {
   display: block;
   width: 100%;
-  max-width: 260px;
+  max-width: 320px;
   height: auto;
   margin: 0 auto;
 }
@@ -313,10 +313,10 @@ h1 {
 /* ── Landscape: resize COF for all landscape orientations ── */
 @media (orientation: landscape) {
   #cof-main, #cof-lookup, #cof-bass {
-    max-width: 208px;
+    max-width: 280px;
   }
-  .layout { grid-template-columns: 216px 1fr; gap: 10px; }
-  .panel { padding: 8px 4px; }
+  .layout { grid-template-columns: 290px 1fr; gap: 14px; }
+  .panel { padding: 8px 6px; }
 }
 
 /* ── Landscape compact (short screens) ───────── */
@@ -334,7 +334,7 @@ h1 {
 
 <header class="site-header">
   <h1>Harmonicon</h1>
-  <p>Roman Numeral Harmony Reference</p>
+  <p>Roman Numerals and Figured Bass Harmony Reference</p>
 </header>
 
 <div class="tab-bar">
@@ -349,7 +349,7 @@ h1 {
     <div>
       <div class="panel">
         <div class="panel-title">Select Key</div>
-        <svg id="cof-main" viewBox="-148 -148 296 296" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg id="cof-main" viewBox="-168 -168 336 336" xmlns="http://www.w3.org/2000/svg"></svg>
         <div class="mode-row">
           <button class="mode-btn active" id="btn-major" onclick="setMode('major')">Major</button>
           <button class="mode-btn" id="btn-minor" onclick="setMode('minor')">Minor</button>
@@ -374,7 +374,7 @@ h1 {
     <div>
       <div class="panel">
         <div class="panel-title">Key</div>
-        <svg id="cof-lookup" viewBox="-148 -148 296 296" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg id="cof-lookup" viewBox="-168 -168 336 336" xmlns="http://www.w3.org/2000/svg"></svg>
         <div class="mode-row">
           <button class="mode-btn active" id="btn-major-lu" onclick="setModeLookup('major')">Major</button>
           <button class="mode-btn" id="btn-minor-lu" onclick="setModeLookup('minor')">Minor</button>
@@ -402,7 +402,7 @@ h1 {
     <div>
       <div class="panel">
         <div class="panel-title">Key</div>
-        <svg id="cof-bass" viewBox="-148 -148 296 296" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg id="cof-bass" viewBox="-168 -168 336 336" xmlns="http://www.w3.org/2000/svg"></svg>
         <div class="mode-row">
           <button class="mode-btn active" id="btn-major-bs" onclick="setModeBass('major')">Major</button>
           <button class="mode-btn" id="btn-minor-bs" onclick="setModeBass('minor')">Minor</button>
@@ -983,29 +983,54 @@ function getDiatonicChords(rootPc, mode, useSharp) {
 
 const S = {
   mode: 'major', keyIndex: 0, enhOverride: null,
+  enhKey: null,       // enharmonic key override {name, pc, sharps} when outer ring clicked
   luMode: 'major', luKeyIndex: 0,
+  luEnhKey: null,
   selectedPCs: new Set(),
   bsMode: 'major', bsKeyIndex: 0,
-  bsPC: null,  // selected bass note pitch class
+  bsPC: null,
+  bsEnhKey: null,
 };
 
 function cof(forLu) { return (forLu ? S.luMode : S.mode) === 'major' ? COF_MAJ : COF_MIN; }
-function keyObj(forLu) { return cof(forLu)[forLu ? S.luKeyIndex : S.keyIndex]; }
+function keyObj(forLu) {
+  if (!forLu && S.enhKey) return S.enhKey;
+  if (forLu  && S.luEnhKey) return S.luEnhKey;
+  return cof(forLu)[forLu ? S.luKeyIndex : S.keyIndex];
+}
 function useSharp(forLu) {
   if (!forLu && S.enhOverride !== null) return S.enhOverride;
   return keyObj(forLu).sharps;
 }
-// Bass tab accessors
-function keyObjBs() { return (S.bsMode === 'major' ? COF_MAJ : COF_MIN)[S.bsKeyIndex]; }
+function keyObjBs() {
+  if (S.bsEnhKey) return S.bsEnhKey;
+  return (S.bsMode === 'major' ? COF_MAJ : COF_MIN)[S.bsKeyIndex];
+}
 function useSharpBs() { return keyObjBs().sharps; }
 
 // ═══════════════════ COF DRAW
 
+// Enharmonic alternatives: for each COF index that has one,
+// the name to show in the outer ring and the equivalent index to jump to.
+// Major: F♯(6)↔G♭, B(5)↔C♭, D♭(7)↔C♯
+// Minor: D♯(6)↔E♭, G♯(5)↔A♭, C♯(4)↔D♭
+const ENH_MAJOR = {
+  5: { name:'C♭', pc:11, sharps:false },
+  6: { name:'G♭', pc:6,  sharps:false },
+  7: { name:'C♯', pc:1,  sharps:true  },
+};
+const ENH_MINOR = {
+  4: { name:'D♭', pc:1, sharps:false },
+  5: { name:'A♭', pc:8, sharps:false },
+  6: { name:'E♭', pc:3, sharps:false },
+};
+
 function drawCOF(svgId, selIdx, mode, onClickFn) {
   const svg = document.getElementById(svgId);
   svg.innerHTML = '';
-  const keys = mode === 'major' ? COF_MAJ : COF_MIN;
-  const OR = 128, IR = 62, gap = 0.022;
+  const keys  = mode === 'major' ? COF_MAJ : COF_MIN;
+  const enhMap = mode === 'major' ? ENH_MAJOR : ENH_MINOR;
+  const OR = 128, IR = 62, ER = 148, gap = 0.022;
 
   for (let i = 0; i < 12; i++) {
     const a0 = (i/12)*2*Math.PI - Math.PI/2 - Math.PI/12 + gap;
@@ -1017,7 +1042,6 @@ function drawCOF(svgId, selIdx, mode, onClickFn) {
     const d = `M${x0} ${y0}L${x1} ${y1}A${OR} ${OR} 0 0 1 ${x2} ${y2}L${x3} ${y3}A${IR} ${IR} 0 0 0 ${x0} ${y0}Z`;
 
     const isSel = i === selIdx;
-    // Gentle hue wheel
     const hue = (i * 30) % 360;
     const fill   = isSel ? `hsl(${hue},35%,70%)` : `hsl(${hue},12%,${91-(i%2)*4}%)`;
     const stroke = isSel ? `hsl(${hue},45%,42%)` : '#c0b8a8';
@@ -1041,6 +1065,52 @@ function drawCOF(svgId, selIdx, mode, onClickFn) {
     g.appendChild(p); g.appendChild(t);
     g.addEventListener('click', () => onClickFn(i));
     svg.appendChild(g);
+
+    // ── Enharmonic outer ring segment ──────────────────────────────
+    if (enhMap[i]) {
+      const enh = enhMap[i];
+      const [ex0,ey0]=pts(OR+1,a0), [ex1,ey1]=pts(ER,a0);
+      const [ex2,ey2]=pts(ER,a1), [ex3,ey3]=pts(OR+1,a1);
+      const ed = `M${ex0} ${ey0}L${ex1} ${ey1}A${ER} ${ER} 0 0 1 ${ex2} ${ey2}L${ex3} ${ey3}A${OR+1} ${OR+1} 0 0 0 ${ex0} ${ey0}Z`;
+
+      // Is this enharmonic key currently selected?
+      const enhIsSelected = S && S.mode === mode &&
+        keys[selIdx] && keys[selIdx].pc === enh.pc && keys[selIdx].name !== enh.name
+        ? false  // already on the main ring
+        : false; // enharmonic outer ring is never "selected" — it's a switch button
+
+      const eg = document.createElementNS('http://www.w3.org/2000/svg','g');
+      eg.setAttribute('class','cof-hit');
+      const ep = document.createElementNS('http://www.w3.org/2000/svg','path');
+      ep.setAttribute('d', ed);
+      // Highlight if this enharmonic key is currently active
+      const hue = (i * 30) % 360;
+      const enhActive = S && S.enhKey && S.enhKey.pc === enh.pc && S.enhKey.name === enh.name
+                     || S && S.luEnhKey && S.luEnhKey.pc === enh.pc && S.luEnhKey.name === enh.name
+                     || S && S.bsEnhKey && S.bsEnhKey.pc === enh.pc && S.bsEnhKey.name === enh.name;
+      ep.setAttribute('fill', enhActive ? `hsl(${hue},35%,70%)` : '#e4dccb');
+      ep.setAttribute('stroke', enhActive ? `hsl(${hue},45%,42%)` : '#b0a890');
+      ep.setAttribute('stroke-width', '0.8');
+
+      const elx = Math.cos(am)*(OR + ER)/2;
+      const ely = Math.sin(am)*(OR + ER)/2;
+      const et = document.createElementNS('http://www.w3.org/2000/svg','text');
+      et.setAttribute('x', elx); et.setAttribute('y', ely);
+      et.setAttribute('text-anchor','middle'); et.setAttribute('dominant-baseline','central');
+      et.setAttribute('font-family','IM Fell English, Georgia, serif');
+      et.setAttribute('font-size', enh.name.length > 2 ? '8' : '9');
+      et.setAttribute('fill', enhActive ? '#2a1a08' : '#6a6050');
+      et.setAttribute('pointer-events','none');
+      et.textContent = mode === 'minor' ? enh.name.toLowerCase() : enh.name;
+
+      eg.appendChild(ep); eg.appendChild(et);
+      // Clicking enharmonic ring: switch to a synthetic key entry
+      eg.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onClickFn(i, enh); // pass enh as second arg to signal enharmonic switch
+      });
+      svg.appendChild(eg);
+    }
   }
 
   const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
@@ -1281,7 +1351,11 @@ function renderChords() {
   const chords = getDiatonicChords(k.pc, S.mode, us);
   document.getElementById('key-display').innerHTML =
     `${k.name} ${S.mode}<small>Key of ${k.name}</small>`;
-  drawCOF('cof-main', S.keyIndex, S.mode, i => { S.keyIndex=i; S.enhOverride=null; renderChords(); });
+  drawCOF('cof-main', S.keyIndex, S.mode, (i, enh) => {
+    S.keyIndex = i; S.enhOverride = null;
+    S.enhKey = enh ? { name: enh.name, pc: enh.pc, sharps: enh.sharps } : null;
+    renderChords();
+  });
   // KEY SIG DISABLED: drawKeySig('keysig-svg', S.keyIndex, S.mode);
 
   const label = S.enhOverride !== null
@@ -1382,8 +1456,9 @@ function renderChords() {
 
 function renderLookupCOF() {
   const k = keyObj(true);
-  drawCOF('cof-lookup', S.luKeyIndex, S.luMode, i => {
+  drawCOF('cof-lookup', S.luKeyIndex, S.luMode, (i, enh) => {
     S.luKeyIndex = i;
+    S.luEnhKey = enh ? { name: enh.name, pc: enh.pc, sharps: enh.sharps } : null;
     renderLookupCOF();
     rebuildNotePicker();
   });
@@ -1395,8 +1470,9 @@ function renderLookupCOF() {
 
 function renderBassCOF() {
   const k = keyObjBs();
-  drawCOF('cof-bass', S.bsKeyIndex, S.bsMode, i => {
+  drawCOF('cof-bass', S.bsKeyIndex, S.bsMode, (i, enh) => {
     S.bsKeyIndex = i;
+    S.bsEnhKey = enh ? { name: enh.name, pc: enh.pc, sharps: enh.sharps } : null;
     S.bsPC = null;
     renderBassCOF();
     rebuildBassNotePicker();
@@ -1501,16 +1577,6 @@ function identifyFromBass() {
   });
 }
 
-function setModeBass(mode) {
-  S.bsMode = mode;
-  S.bsPC = null;
-  document.getElementById('btn-major-bs').classList.toggle('active', mode === 'major');
-  document.getElementById('btn-minor-bs').classList.toggle('active', mode === 'minor');
-  renderBassCOF();
-  rebuildBassNotePicker();
-  document.getElementById('bass-results').innerHTML = '';
-}
-
 
 
 function rebuildNotePicker() {
@@ -1602,21 +1668,28 @@ function findChord() {
 // ═══════════════════ CONTROLS
 
 function setMode(mode) {
-  S.mode = mode; S.enhOverride = null;
-  // keyIndex is preserved — same position in COF_MAJ and COF_MIN = same key signature
+  S.mode = mode; S.enhOverride = null; S.enhKey = null;
   document.getElementById('btn-major').classList.toggle('active', mode==='major');
   document.getElementById('btn-minor').classList.toggle('active', mode==='minor');
   renderChords();
 }
 
 function setModeLookup(mode) {
-  S.luMode = mode;
-  // luKeyIndex preserved — same position = same key signature
+  S.luMode = mode; S.luEnhKey = null;
   document.getElementById('btn-major-lu').classList.toggle('active', mode==='major');
   document.getElementById('btn-minor-lu').classList.toggle('active', mode==='minor');
   renderLookupCOF();
   rebuildNotePicker();
   updateSelDisplay();
+}
+
+function setModeBass(mode) {
+  S.bsMode = mode; S.bsPC = null; S.bsEnhKey = null;
+  document.getElementById('btn-major-bs').classList.toggle('active', mode === 'major');
+  document.getElementById('btn-minor-bs').classList.toggle('active', mode === 'minor');
+  renderBassCOF();
+  rebuildBassNotePicker();
+  document.getElementById('bass-results').innerHTML = '';
 }
 
 function toggleEnharmonic() {

@@ -1,4 +1,4 @@
-# Harmonicon — Roman Numeral Harmony Reference
+# Harmonicon — Roman Numerals and Figured Bass Harmony Reference
 
 > *Vibecoded using [Claude](https://claude.ai) by Anthropic.*
 
