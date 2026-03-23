@@ -982,7 +982,8 @@ function getDiatonicChords(rootPc, mode, useSharp) {
 // ═══════════════════ STATE
 
 const S = {
-  mode: 'major', keyIndex: 0, enhOverride: null,
+  mode: 'major', keyIndex: 0,
+  spellingPref: 'auto',  // 'auto' | 'sharps' | 'flats'
   enhKey: null,       // enharmonic key override {name, pc, sharps} when outer ring clicked
   luMode: 'major', luKeyIndex: 0,
   luEnhKey: null,
@@ -999,14 +1000,19 @@ function keyObj(forLu) {
   return cof(forLu)[forLu ? S.luKeyIndex : S.keyIndex];
 }
 function useSharp(forLu) {
-  if (!forLu && S.enhOverride !== null) return S.enhOverride;
-  return keyObj(forLu).sharps;
+  if (S.spellingPref === 'sharps') return true;
+  if (S.spellingPref === 'flats')  return false;
+  return keyObj(forLu).sharps;  // auto: follow the key's native spelling
 }
 function keyObjBs() {
   if (S.bsEnhKey) return S.bsEnhKey;
   return (S.bsMode === 'major' ? COF_MAJ : COF_MIN)[S.bsKeyIndex];
 }
-function useSharpBs() { return keyObjBs().sharps; }
+function useSharpBs() {
+  if (S.spellingPref === 'sharps') return true;
+  if (S.spellingPref === 'flats')  return false;
+  return keyObjBs().sharps;
+}
 
 // ═══════════════════ COF DRAW
 
@@ -1352,15 +1358,13 @@ function renderChords() {
   document.getElementById('key-display').innerHTML =
     `${k.name} ${S.mode}<small>Key of ${k.name}</small>`;
   drawCOF('cof-main', S.keyIndex, S.mode, (i, enh) => {
-    S.keyIndex = i; S.enhOverride = null;
+    S.keyIndex = i;
     S.enhKey = enh ? { name: enh.name, pc: enh.pc, sharps: enh.sharps } : null;
     renderChords();
   });
   // KEY SIG DISABLED: drawKeySig('keysig-svg', S.keyIndex, S.mode);
 
-  const label = S.enhOverride !== null
-    ? (S.enhOverride ? 'Sharps' : 'Flats')
-    : `Auto (${k.sharps?'sharps':'flats'})`;
+  const label = { auto: `Auto (${k.sharps?'sharps':'flats'})`, sharps: 'Always sharps', flats: 'Always flats' }[S.spellingPref];
   document.getElementById('enh-label').textContent = label;
 
   const grid = document.getElementById('chord-grid');
@@ -1668,7 +1672,7 @@ function findChord() {
 // ═══════════════════ CONTROLS
 
 function setMode(mode) {
-  S.mode = mode; S.enhOverride = null; S.enhKey = null;
+  S.mode = mode; S.enhKey = null;
   document.getElementById('btn-major').classList.toggle('active', mode==='major');
   document.getElementById('btn-minor').classList.toggle('active', mode==='minor');
   renderChords();
@@ -1693,9 +1697,12 @@ function setModeBass(mode) {
 }
 
 function toggleEnharmonic() {
-  const k = keyObj(false);
-  S.enhOverride = S.enhOverride === null ? !k.sharps : !S.enhOverride;
+  const cycle = { auto: 'sharps', sharps: 'flats', flats: 'auto' };
+  S.spellingPref = cycle[S.spellingPref];
   renderChords();
+  // Also refresh lookup and bass pickers if they're visible
+  rebuildNotePicker();
+  rebuildBassNotePicker();
 }
 
 function showTab(btn, id) {
