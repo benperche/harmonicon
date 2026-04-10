@@ -1714,10 +1714,43 @@ function setChordView(view) {
 }
 
 function showTab(btn, id) {
+  // Carry the current key selection across to the destination tab
+  const fromPanel = document.querySelector('.tab-panel.active');
+  const fromId = fromPanel ? fromPanel.id.replace('tab-', '') : null;
+  if (fromId && fromId !== id) {
+    let srcIndex, srcMode, srcEnh;
+    if      (fromId === 'chords') { srcIndex = S.keyIndex;   srcMode = S.mode;   srcEnh = S.enhKey;   }
+    else if (fromId === 'lookup') { srcIndex = S.luKeyIndex; srcMode = S.luMode; srcEnh = S.luEnhKey; }
+    else if (fromId === 'bass')   { srcIndex = S.bsKeyIndex; srcMode = S.bsMode; srcEnh = S.bsEnhKey; }
+
+    if (id === 'chords') {
+      const changed = S.keyIndex !== srcIndex || S.mode !== srcMode;
+      S.keyIndex = srcIndex; S.mode = srcMode; S.enhKey = srcEnh;
+      document.getElementById('btn-major').classList.toggle('active', srcMode === 'major');
+      document.getElementById('btn-minor').classList.toggle('active', srcMode === 'minor');
+    } else if (id === 'lookup') {
+      const changed = S.luKeyIndex !== srcIndex || S.luMode !== srcMode;
+      S.luKeyIndex = srcIndex; S.luMode = srcMode; S.luEnhKey = srcEnh;
+      document.getElementById('btn-major-lu').classList.toggle('active', srcMode === 'major');
+      document.getElementById('btn-minor-lu').classList.toggle('active', srcMode === 'minor');
+      if (changed) document.getElementById('lookup-results').innerHTML = '';
+    } else if (id === 'bass') {
+      const changed = S.bsKeyIndex !== srcIndex || S.bsMode !== srcMode;
+      S.bsKeyIndex = srcIndex; S.bsMode = srcMode; S.bsEnhKey = srcEnh;
+      document.getElementById('btn-major-bs').classList.toggle('active', srcMode === 'major');
+      document.getElementById('btn-minor-bs').classList.toggle('active', srcMode === 'minor');
+      if (changed) document.getElementById('bass-results').innerHTML = '';
+    }
+  }
+
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   btn.classList.add('active');
+
+  if      (id === 'chords') renderChords();
+  else if (id === 'lookup') { renderLookupCOF(); rebuildNotePicker(); updateSelDisplay(); }
+  else if (id === 'bass')   { renderBassCOF(); rebuildBassNotePicker(); }
 }
 
 // ═══════════════════ INIT
