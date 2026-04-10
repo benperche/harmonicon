@@ -229,6 +229,57 @@ h1 {
 .rn.special { color: var(--green); }
 .td-rn.special { color: var(--green); }
 
+/* ── Functional view ─────────── */
+.func-section { margin-bottom: 14px; }
+.func-section-header {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 0.62rem; font-weight: 600;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--func-color, var(--ink3));
+  padding: 7px 0 5px;
+  border-bottom: 2px solid var(--func-color, var(--border));
+  margin-bottom: 7px;
+}
+.func-abbr {
+  font-family: 'IM Fell English', serif; font-size: 0.9rem;
+  letter-spacing: 0; text-transform: none; font-weight: 400;
+  margin-left: auto; opacity: 0.7;
+}
+.func-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 5px;
+  align-items: start;
+}
+.func-tile {
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--func-color, var(--border));
+  border-radius: 2px; overflow: hidden; transition: border-color 0.12s;
+}
+.func-tile:hover { border-color: var(--border2); }
+.func-tile-hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 9px; background: var(--bg2);
+  cursor: pointer; user-select: none; transition: background 0.1s;
+  border-bottom: 1px solid transparent;
+}
+.func-tile-hdr:hover { background: var(--bg3); }
+.func-tile.open .func-tile-hdr { background: var(--bg3); border-bottom-color: var(--border); }
+.func-tile.open .inv-wrap { display: block; }
+.func-expand-icon { font-size: 0.5rem; color: var(--ink3); margin-left: auto; transition: transform 0.18s; }
+.func-tile.open .func-expand-icon { transform: rotate(180deg); }
+.func-mid { flex: 1; min-width: 0; }
+.func-rn {
+  font-family: 'IM Fell English', serif; font-size: 1.05rem;
+  color: var(--func-color, var(--red)); line-height: 1.2; min-width: 44px;
+}
+.func-rn.minor-rn { font-style: italic; }
+.func-rn.secondary { color: var(--purple); }
+.func-rn.special { color: var(--green); }
+.func-name { font-size: 0.67rem; color: var(--ink3); line-height: 1.25; }
+.func-notes { font-size: 0.69rem; color: var(--ink2); margin-top: 1px; }
+.func-note7 { color: var(--ink3); font-style: italic; }
+
 /* ── Lookup tab ──────────────── */
 .lookup-intro { font-size: 0.86rem; color: var(--ink2); margin-bottom: 14px; line-height: 1.65; }
 
@@ -346,7 +397,7 @@ h1 {
 <!-- ══ CHORD REFERENCE ══ -->
 <div class="tab-panel active" id="tab-chords">
   <div class="layout">
-    <div>
+    <div style="display:flex;flex-direction:column;gap:10px">
       <div class="panel">
         <div class="panel-title">Select Key</div>
         <svg id="cof-main" viewBox="-168 -168 336 336" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -360,9 +411,16 @@ h1 {
         <div class="key-display" id="key-display">C major<small>Key of C</small></div>
         <!-- KEY SIG DISABLED: <svg id="keysig-svg" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:10px auto 0"></svg> -->
       </div>
+      <div class="panel">
+        <div class="panel-title">View</div>
+        <div class="mode-row">
+          <button class="mode-btn active" id="btn-view-section" onclick="setChordView('section')">By Section</button>
+          <button class="mode-btn" id="btn-view-function" onclick="setChordView('function')">By Function</button>
+        </div>
+      </div>
     </div>
     <div class="panel">
-      <div class="panel-title">Diatonic Chords &amp; Inversions</div>
+      <div class="panel-title" id="chord-panel-title">Diatonic Chords &amp; Inversions</div>
       <div class="chord-grid" id="chord-grid"></div>
     </div>
   </div>
@@ -983,6 +1041,7 @@ function getDiatonicChords(rootPc, mode, useSharp) {
 
 const S = {
   mode: 'major', keyIndex: 0,
+  chordView: 'section',  // 'section' | 'function'
   spellingPref: 'auto',  // 'auto' | 'sharps' | 'flats'
   enhKey: null,       // enharmonic key override {name, pc, sharps} when outer ring clicked
   luMode: 'major', luKeyIndex: 0,
@@ -1135,6 +1194,150 @@ function drawCOF(svgId, selIdx, mode, onClickFn) {
 }
 
 // ═══════════════════ RENDER CHORD REFERENCE
+
+function getChordFunction(ch) {
+  const { rn, section } = ch;
+  if (section === 'aug6' || section === 'neapolitan') return 'predominant';
+  if (section === 'ct') return 'other';
+  if (section === 'borrowed') {
+    if (rn === 'iv' || rn === 'ii°' || rn === 'IV' || rn === 'II') return 'predominant';
+    return 'other';
+  }
+  if (section === 'secondary') {
+    if (rn === 'V/ii' || rn === 'V/IV' || rn === 'V/iv') return 'predominant';
+    if (rn === 'V/V' || rn === 'V/vii°') return 'dominant';
+    return 'other';
+  }
+  if (['I','i','III','iii','VI','vi'].includes(rn)) return 'tonic';
+  if (['ii','IV','ii°','iv'].includes(rn)) return 'predominant';
+  if (['V','v','vii°'].includes(rn)) return 'dominant';
+  return 'other';
+}
+
+function renderChordsFunctional(chords, grid) {
+  const groups = { tonic: [], predominant: [], dominant: [], other: [] };
+  chords.forEach(ch => { groups[getChordFunction(ch)].push(ch); });
+
+  const defs = [
+    { key: 'tonic',       label: 'Tonic',               abbr: 'T',  cssVar: '--teal' },
+    { key: 'predominant', label: 'Pre-dominant',         abbr: 'PD', cssVar: '--gold' },
+    { key: 'dominant',    label: 'Dominant',             abbr: 'D',  cssVar: '--red'  },
+    { key: 'other',       label: 'Extended & Chromatic', abbr: '',   cssVar: '--ink3' },
+  ];
+
+  defs.forEach(def => {
+    const chlist = groups[def.key];
+    if (!chlist.length) return;
+
+    const sec = document.createElement('div');
+    sec.className = 'func-section';
+    sec.style.setProperty('--func-color', `var(${def.cssVar})`);
+
+    const hdr = document.createElement('div');
+    hdr.className = 'func-section-header';
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = def.label;
+    hdr.appendChild(labelSpan);
+    if (def.abbr) {
+      const abbr = document.createElement('span');
+      abbr.className = 'func-abbr';
+      abbr.textContent = def.abbr;
+      hdr.appendChild(abbr);
+    }
+    sec.appendChild(hdr);
+
+    const tiles = document.createElement('div');
+    tiles.className = 'func-tiles';
+
+    chlist.forEach(ch => {
+      const isMin  = ch.min;
+      const isSec  = ch.section === 'secondary';
+      const isSpec = ch.section === 'aug6' || ch.section === 'ct';
+      const tile = document.createElement('div');
+      tile.className = 'func-tile';
+
+      // ── Header (compact, always visible) ──
+      const tileHdr = document.createElement('div');
+      tileHdr.className = 'func-tile-hdr';
+      tileHdr.addEventListener('click', () => tile.classList.toggle('open'));
+
+      const rnEl = document.createElement('div');
+      rnEl.className = `func-rn${isMin?' minor-rn':''}${isSec?' secondary':''}${isSpec?' special':''}`;
+      rnEl.innerHTML = ch.rn;
+
+      const midEl = document.createElement('div');
+      midEl.className = 'func-mid';
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'func-name';
+      nameEl.textContent = ch.name;
+
+      const notesEl = document.createElement('div');
+      notesEl.className = 'func-notes';
+      if (ch.note7) {
+        notesEl.innerHTML = ch.triadNotes.join('–') +
+          ' <span class="func-note7">(' + ch.note7 + ')</span>';
+      } else {
+        notesEl.textContent = ch.triadNotes.join('–');
+      }
+
+      midEl.appendChild(nameEl);
+      midEl.appendChild(notesEl);
+
+      const expIcon = document.createElement('span');
+      expIcon.className = 'func-expand-icon';
+      expIcon.textContent = '▼';
+
+      tileHdr.appendChild(rnEl);
+      tileHdr.appendChild(midEl);
+      tileHdr.appendChild(expIcon);
+
+      // ── Inversion table (hidden until expanded) ──
+      const wrap = document.createElement('div');
+      wrap.className = 'inv-wrap';
+      const tbl = document.createElement('table');
+      tbl.className = 'inv-table';
+
+      const isFixed = ch.fbType === 'fixed';
+      tbl.innerHTML = isFixed
+        ? `<thead><tr><th>Bass</th><th>Chord name</th><th>Chord tones</th></tr></thead>`
+        : `<thead><tr><th>Bass</th><th>Roman numeral</th><th>Inversion</th><th>Chord tones</th></tr></thead>`;
+
+      const tbody = document.createElement('tbody');
+      ch.inversions.forEach(inv => {
+        const tr = document.createElement('tr');
+        const nHtml = inv.allNotes.map(n => {
+          if (n === inv.bassNote && !inv.note7inBass) return `<span class="bass-hl">${n}</span>`;
+          if (inv.note7inBass && n === inv.note7) return `<span class="bass-hl">${n}</span>`;
+          if (inv.note7 && n === inv.note7 && !inv.note7inBass) return `<span class="note-seventh">(7th: ${n})</span>`;
+          return n;
+        }).join(' ');
+        if (isFixed) {
+          tr.innerHTML = `
+            <td class="td-bass">${inv.bassNote}</td>
+            <td class="td-rn ${isSpec?'special':''}">${inv.rnDisplay}</td>
+            <td class="td-notes">${nHtml}</td>`;
+        } else {
+          tr.innerHTML = `
+            <td class="td-bass">${inv.bassNote}</td>
+            <td class="td-rn ${isMin?'minor-rn':''} ${isSec?'secondary':''}">${inv.rnDisplay}</td>
+            <td class="td-inv">${inv.inv}</td>
+            <td class="td-notes">${nHtml}</td>`;
+        }
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);
+      wrap.appendChild(tbl);
+
+      tile.appendChild(tileHdr);
+      tile.appendChild(wrap);
+      tiles.appendChild(tile);
+    });
+
+    sec.appendChild(tiles);
+    grid.appendChild(sec);
+  });
+}
 
 
 /* KEY SIG DISABLED
@@ -1369,6 +1572,14 @@ function renderChords() {
 
   const grid = document.getElementById('chord-grid');
   grid.innerHTML = '';
+
+  if (S.chordView === 'function') {
+    document.getElementById('chord-panel-title').textContent = 'Chords by Function';
+    renderChordsFunctional(chords, grid);
+    return;
+  }
+
+  document.getElementById('chord-panel-title').textContent = 'Diatonic Chords & Inversions';
 
   let lastSec = null;
   chords.forEach(ch => {
@@ -1703,6 +1914,13 @@ function toggleEnharmonic() {
   // Also refresh lookup and bass pickers if they're visible
   rebuildNotePicker();
   rebuildBassNotePicker();
+}
+
+function setChordView(view) {
+  S.chordView = view;
+  document.getElementById('btn-view-section').classList.toggle('active', view === 'section');
+  document.getElementById('btn-view-function').classList.toggle('active', view === 'function');
+  renderChords();
 }
 
 function showTab(btn, id) {
