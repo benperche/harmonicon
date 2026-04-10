@@ -265,6 +265,7 @@ h1 {
 }
 .func-tile-hdr:hover { background: var(--bg3); }
 .func-tile.open .func-tile-hdr { background: var(--bg3); border-bottom-color: var(--border); }
+.func-tile.open { grid-column: 1 / -1; }
 .func-tile.open .inv-wrap { display: block; }
 .func-expand-icon { font-size: 0.5rem; color: var(--ink3); margin-left: auto; transition: transform 0.18s; }
 .func-tile.open .func-expand-icon { transform: rotate(180deg); }
@@ -497,7 +498,7 @@ h1 {
 //   MINOR: new chords, tabs, or notable improvements
 //   PATCH: bug fixes, spelling corrections, small UI tweaks
 // ═══════════════════════════════════════════════════════════════════
-const VERSION = '1.2.0';
+const VERSION = '0.3';
 // ═══════════════════ PITCH CLASSES & SPELLINGS
 
 const SH = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
@@ -1575,11 +1576,12 @@ function renderChords() {
 
   if (S.chordView === 'function') {
     document.getElementById('chord-panel-title').textContent = 'Chords by Function';
+    document.getElementById('chord-panel-title').style.display = '';
     renderChordsFunctional(chords, grid);
     return;
   }
 
-  document.getElementById('chord-panel-title').textContent = 'Diatonic Chords & Inversions';
+  document.getElementById('chord-panel-title').style.display = 'none';
 
   let lastSec = null;
   chords.forEach(ch => {
