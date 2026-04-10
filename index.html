@@ -141,14 +141,46 @@ h1 {
 }
 .mode-btn.active { background: var(--red); border-color: var(--red); color: #fff; }
 
-.enh-row { margin-top: 6px; }
-.enh-btn {
-  width: 100%; background: var(--bg2); border: 1px solid var(--border);
-  color: var(--ink3); font-family: 'Crimson Pro', serif; font-size: 0.76rem;
-  padding: 5px 0; border-radius: 2px; cursor: pointer;
-  transition: border-color 0.12s; letter-spacing: 0.04em;
+/* ── Help modal ──────────────── */
+.help-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(42,34,24,0.45); z-index: 100;
+  align-items: center; justify-content: center;
 }
-.enh-btn:hover { border-color: var(--border2); }
+.help-overlay.open { display: flex; }
+.help-modal {
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 2px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  max-width: 580px; width: 92%; max-height: 82vh; overflow-y: auto;
+  padding: 20px 24px;
+}
+.help-modal-hdr {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.help-modal-hdr h2 {
+  font-family: 'IM Fell English', serif; font-weight: 400;
+  font-size: 1.1rem; color: var(--ink);
+}
+.help-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--ink3); font-size: 1rem; line-height: 1;
+  padding: 0 2px; transition: color 0.1s;
+}
+.help-close:hover { color: var(--ink); }
+.help-body h3 {
+  font-family: 'IM Fell English', serif; font-weight: 400;
+  font-size: 0.94rem; color: var(--red); margin: 14px 0 4px;
+}
+.help-body h3:first-child { margin-top: 0; }
+.help-body p { font-size: 0.84rem; color: var(--ink2); line-height: 1.75; margin-bottom: 2px; }
+.help-btn {
+  margin-left: auto; background: none; border: none;
+  color: var(--ink3); cursor: pointer; font-family: 'Crimson Pro', serif;
+  font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 7px 12px; transition: color 0.12s;
+}
+.help-btn:hover { color: var(--ink); }
 
 .key-display {
   text-align: center; margin-top: 10px;
@@ -393,6 +425,7 @@ h1 {
   <button class="tab-btn active" data-tab="chords" onclick="showTab(this,'chords')">Chord Reference</button>
   <button class="tab-btn" data-tab="lookup" onclick="showTab(this,'lookup')">Chord Lookup</button>
   <button class="tab-btn" data-tab="bass" onclick="showTab(this,'bass')">Identify from Bass Note</button>
+  <button class="help-btn" onclick="openHelp()">Help</button>
 </div>
 
 <!-- ══ CHORD REFERENCE ══ -->
@@ -405,9 +438,6 @@ h1 {
         <div class="mode-row">
           <button class="mode-btn active" id="btn-major" onclick="setMode('major')">Major</button>
           <button class="mode-btn" id="btn-minor" onclick="setMode('minor')">Minor</button>
-        </div>
-        <div class="enh-row">
-          <button class="enh-btn" onclick="toggleEnharmonic()">Spelling: <span id="enh-label">Auto</span></button>
         </div>
         <div class="key-display" id="key-display">C major<small>Key of C</small></div>
         <!-- KEY SIG DISABLED: <svg id="keysig-svg" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:10px auto 0"></svg> -->
@@ -480,14 +510,34 @@ h1 {
 
 
 <p class="footnote">
-  <strong>How to read this:</strong> Click a chord to expand its inversions. The <strong>bass note</strong> (underlined in red) tells you which note is at the bottom of the chord — this determines the Roman numeral suffix. The <strong>chord tones</strong> column shows the notes of the chord in root-position order; the 7th is shown in <em>italics (7th: X)</em> and is optional — include it for a richer sound, omit it for a plain triad. In the <strong>3rd inversion</strong>, the 7th is in the bass and is underlined like any other bass note.
-  <br><br>
-  <strong>Figured bass suffixes:</strong> No suffix = root position · ⁶ = 1st inversion (3rd in bass) · ⁶₄ = 2nd inversion (5th in bass) · ⁷ = root position 7th chord · ⁶₅ = 1st inv. 7th · ⁴₃ = 2nd inv. 7th · ⁴₂ = 3rd inv. 7th (7th in bass) · °⁷ °⁶₅ °⁴₃ °⁴₂ = diminished 7th and its inversions.
-  <br><br>
-  <strong>Special chords:</strong> Aug. 6th chords (It⁺⁶, Fr⁴₃, Ger⁶₅) have b̂6 in the bass and ♯^4 as the top note, creating an augmented 6th interval that resolves outward to the dominant. The <strong>Neapolitan (N⁶)</strong> is a major triad on ♭^2, almost always in 1st inversion, functioning as a pre-dominant. <strong>Borrowed chords</strong> are taken from the parallel minor (in a major key) or parallel major (in a minor key). CT chords share a common tone with the target harmony — the sustained note is shown in the chord name.
-  <br><br>
   <span style="color:var(--ink3)">Harmonicon <span id="footer-version"></span> · Created by Ben Perche with <a href="https://claude.ai" style="color:var(--ink3)">Claude.ai</a></span>
 </p>
+
+<!-- ══ HELP MODAL ══ -->
+<div id="help-overlay" class="help-overlay" onclick="closeHelp()">
+  <div class="help-modal" onclick="event.stopPropagation()">
+    <div class="help-modal-hdr">
+      <h2>About Harmonicon</h2>
+      <button class="help-close" onclick="closeHelp()">✕</button>
+    </div>
+    <div class="help-body">
+      <h3>Reading the chord tables</h3>
+      <p>Click any chord to expand its inversion table. The <strong>bass note</strong> (underlined in red) is the lowest note of the chord — it determines the Roman numeral suffix. The <strong>chord tones</strong> column lists notes in root-position order; the 7th is shown in <em>italics</em> and is optional (include it for a richer sound, omit it for a plain triad). In the 3rd inversion the 7th is itself in the bass and is underlined accordingly.</p>
+
+      <h3>Figured bass suffixes</h3>
+      <p>No suffix = root position · ⁶ = 1st inversion (3rd in bass) · ⁶₄ = 2nd inversion (5th in bass) · ⁷ = root-position 7th chord · ⁶₅ = 1st inv. 7th · ⁴₃ = 2nd inv. 7th · ⁴₂ = 3rd inv. 7th (7th in bass) · °⁷ °⁶₅ °⁴₃ °⁴₂ = diminished 7th and its inversions.</p>
+
+      <h3>Chord by function view</h3>
+      <p>Switch to <strong>By Function</strong> in the View panel to group chords by harmonic role rather than type. <strong>Tonic (T)</strong> chords provide stability and rest. <strong>Pre-dominant (PD)</strong> chords build tension toward the dominant, including the Neapolitan and augmented sixth chords. <strong>Dominant (D)</strong> chords create the tension that resolves back to tonic. <strong>Extended &amp; Chromatic</strong> covers secondary dominants that tonicise other areas, borrowed chords, and common-tone chords.</p>
+
+      <h3>Special chords</h3>
+      <p><strong>Augmented sixth chords</strong> (It⁺⁶, Fr⁴₃, Ger⁶₅) have ♭6̂ in the bass and ♯4̂ on top, creating an augmented 6th interval that expands outward to the dominant. The <strong>Neapolitan (N⁶)</strong> is a major triad on ♭2̂, almost always in 1st inversion, functioning as a pre-dominant. <strong>Borrowed chords</strong> come from the parallel minor (in a major key) or parallel major (in a minor key). <strong>Common-tone (CT) chords</strong> share one note with the chord they embellish — the sustained pitch is named in the chord description.</p>
+
+      <h3>Note spelling</h3>
+      <p>Note names follow the native spelling of the selected key (sharps for sharp keys, flats for flat keys). For keys with enharmonic equivalents (e.g. F♯ / G♭), click the outer ring of the circle of fifths to switch to the enharmonic spelling.</p>
+    </div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -1360,9 +1410,6 @@ function renderChords() {
     S.enhKey = enh ? { name: enh.name, pc: enh.pc, sharps: enh.sharps } : null;
     renderChords();
   });
-  const label = { auto: `Auto (${k.sharps?'sharps':'flats'})`, sharps: 'Always sharps', flats: 'Always flats' }[S.spellingPref];
-  document.getElementById('enh-label').textContent = label;
-
   const grid = document.getElementById('chord-grid');
   grid.innerHTML = '';
 
@@ -1655,14 +1702,9 @@ function setModeBass(mode) {
   document.getElementById('bass-results').innerHTML = '';
 }
 
-function toggleEnharmonic() {
-  const cycle = { auto: 'sharps', sharps: 'flats', flats: 'auto' };
-  S.spellingPref = cycle[S.spellingPref];
-  renderChords();
-  // Also refresh lookup and bass pickers if they're visible
-  rebuildNotePicker();
-  rebuildBassNotePicker();
-}
+function openHelp()  { document.getElementById('help-overlay').classList.add('open'); }
+function closeHelp() { document.getElementById('help-overlay').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHelp(); });
 
 function setChordView(view) {
   S.chordView = view;
