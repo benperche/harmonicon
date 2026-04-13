@@ -376,6 +376,42 @@ h1 {
 .bass-result-name { color: var(--ink3); font-size: 0.76rem; }
 .bass-result-inv  { color: var(--ink3); font-size: 0.74rem; }
 
+/* ── Modes tab ───────────────── */
+.modes-grid { display: flex; flex-direction: column; gap: 6px; }
+.mode-card {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--border); border-radius: 2px;
+  overflow: hidden; background: var(--surface);
+  transition: border-color 0.12s;
+}
+.mode-card:hover { border-color: var(--border2); }
+.mode-info {
+  padding: 9px 11px; min-width: 148px; width: 148px;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  border-left: 3px solid var(--mcolor, var(--border));
+  display: flex; flex-direction: column; justify-content: center;
+}
+.mode-title { font-family: 'IM Fell English', serif; font-size: 1.0rem; color: var(--mcolor, var(--ink)); line-height: 1.2; }
+.mode-alias { font-size: 0.69rem; color: var(--ink3); display: block; margin-top: 1px; }
+.mode-char { font-size: 0.63rem; color: var(--ink3); margin-top: 4px; line-height: 1.45; }
+.mode-meta { display: flex; align-items: baseline; justify-content: space-between; margin-top: 5px; gap: 6px; }
+.mode-parent { font-size: 0.61rem; color: var(--ink3); font-style: italic; flex: 1; }
+.mode-bright { font-size: 0.63rem; font-weight: 600; color: var(--mcolor, var(--ink3)); white-space: nowrap; }
+.mode-scale { display: flex; flex: 1; }
+.mode-cell {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 8px 2px; border-right: 1px solid var(--bg3); text-align: center; gap: 2px;
+  min-width: 0;
+}
+.mode-cell:last-child { border-right: none; }
+.mode-cell.is-root { background: color-mix(in srgb, var(--mcolor, var(--border)) 8%, transparent); }
+.mode-note { font-family: 'IM Fell English', serif; font-size: 1.0rem; color: var(--ink); line-height: 1; }
+.mode-cell.is-root .mode-note { color: var(--mcolor, var(--red)); }
+.mode-deg { font-size: 0.58rem; color: var(--ink3); }
+.mode-chord-cell { font-family: 'IM Fell English', serif; font-size: 0.8rem; color: var(--teal); line-height: 1; }
+.mode-chord-cell.ch-minor { font-style: italic; }
+.mode-chord-cell.ch-dim { color: var(--ink3); }
+
 /* ── Footer ──────────────────── */
 .footnote {
   margin-top: 22px; font-size: 0.68rem; color: var(--ink3);
@@ -386,7 +422,7 @@ h1 {
 /* KEY SIG DISABLED: #keysig-svg { display: block; margin: 10px auto 0; overflow: visible; } */
 
 /* ── COF SVG centring (all orientations) ── */
-#cof-main, #cof-lookup, #cof-bass {
+#cof-main, #cof-lookup, #cof-bass, #cof-modes {
   display: block;
   width: 100%;
   max-width: 320px;
@@ -396,7 +432,7 @@ h1 {
 
 /* ── Landscape: resize COF for all landscape orientations ── */
 @media (orientation: landscape) {
-  #cof-main, #cof-lookup, #cof-bass {
+  #cof-main, #cof-lookup, #cof-bass, #cof-modes {
     max-width: 280px;
   }
   .layout { grid-template-columns: 290px 1fr; gap: 14px; }
@@ -425,6 +461,7 @@ h1 {
   <button class="tab-btn active" data-tab="chords" onclick="showTab(this,'chords')">Chord Reference</button>
   <button class="tab-btn" data-tab="lookup" onclick="showTab(this,'lookup')">Chord Lookup</button>
   <button class="tab-btn" data-tab="bass" onclick="showTab(this,'bass')">Identify from Bass Note</button>
+  <button class="tab-btn" data-tab="modes" onclick="showTab(this,'modes')">Modes</button>
   <button class="help-btn" onclick="openHelp()">Help</button>
 </div>
 
@@ -508,6 +545,29 @@ h1 {
   </div>
 </div>
 
+<!-- ══ MODES ══ -->
+<div class="tab-panel" id="tab-modes">
+  <div class="layout">
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="panel">
+        <div class="panel-title">Root Note</div>
+        <svg id="cof-modes" viewBox="-168 -168 336 336" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="key-display" id="key-display-md">C<small>Root note</small></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Order</div>
+        <div class="mode-row">
+          <button class="mode-btn active" id="btn-mord-scale" onclick="setModeOrder('scale')">Scale</button>
+          <button class="mode-btn" id="btn-mord-bright" onclick="setModeOrder('brightness')">Brightness</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Church Modes</div>
+      <div class="modes-grid" id="modes-grid"></div>
+    </div>
+  </div>
+</div>
 
 <p class="footnote">
   <span style="color:var(--ink3)">Harmonicon <span id="footer-version"></span> · Created by Ben Perche with <a href="https://claude.ai" style="color:var(--ink3)">Claude.ai</a></span>
@@ -548,7 +608,7 @@ h1 {
 //   MINOR: new chords, tabs, or notable improvements
 //   PATCH: bug fixes, spelling corrections, small UI tweaks
 // ═══════════════════════════════════════════════════════════════════
-const VERSION = '1.3';
+const VERSION = '1.4';
 // ═══════════════════ PITCH CLASSES & SPELLINGS
 
 const SH = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
@@ -624,6 +684,39 @@ const COF_MIN = [
   {name:'D♯',pc:3, sharps:true},{name:'B♭',pc:10,sharps:false},
   {name:'F', pc:5, sharps:false},{name:'C', pc:0, sharps:false},
   {name:'G', pc:7, sharps:false},{name:'D', pc:2, sharps:false},
+];
+
+// ═══════════════════ CHURCH MODES
+
+const MODES = [
+  { name:'Ionian',     alias:'Major',         char:'',
+    degs:['1','2','3','4','5','6','7'],
+    intervals:[0,2,4,5,7,9,11], parentOffset:0,  brightness:5,
+    chords:['I','ii','iii','IV','V','vi','vii°'], color:'#3d7a3d' },
+  { name:'Dorian',     alias:'',              char:'♭3 ♭7',
+    degs:['1','2','♭3','4','5','6','♭7'],
+    intervals:[0,2,3,5,7,9,10], parentOffset:2,  brightness:3,
+    chords:['i','ii','♭III','IV','v','vi°','♭VII'], color:'#2a7a70' },
+  { name:'Phrygian',   alias:'',              char:'♭2 ♭3 ♭6 ♭7',
+    degs:['1','♭2','♭3','4','5','♭6','♭7'],
+    intervals:[0,1,3,5,7,8,10], parentOffset:4,  brightness:1,
+    chords:['i','♭II','♭III','iv','v°','♭VI','♭vii'], color:'#5a3a8e' },
+  { name:'Lydian',     alias:'',              char:'♯4',
+    degs:['1','2','3','♯4','5','6','7'],
+    intervals:[0,2,4,6,7,9,11], parentOffset:5,  brightness:6,
+    chords:['I','II','iii','♯iv°','V','vi','vii'], color:'#c09a3c' },
+  { name:'Mixolydian', alias:'',              char:'♭7',
+    degs:['1','2','3','4','5','6','♭7'],
+    intervals:[0,2,4,5,7,9,10], parentOffset:7,  brightness:4,
+    chords:['I','ii','iii°','IV','v','vi','♭VII'], color:'#b07030' },
+  { name:'Aeolian',    alias:'Natural minor', char:'♭3 ♭6 ♭7',
+    degs:['1','2','♭3','4','5','♭6','♭7'],
+    intervals:[0,2,3,5,7,8,10], parentOffset:9,  brightness:2,
+    chords:['i','ii°','♭III','iv','v','♭VI','♭VII'], color:'#3a5a9e' },
+  { name:'Locrian',    alias:'',              char:'♭2 ♭5',
+    degs:['1','♭2','♭3','4','♭5','♭6','♭7'],
+    intervals:[0,1,3,5,6,8,10], parentOffset:11, brightness:0,
+    chords:['i°','♭II','♭iii','iv','♭V','♭VI','♭vii'], color:'#7a7878' },
 ];
 
 // ═══════════════════ FIGURED BASS TABLES
@@ -1101,9 +1194,13 @@ const S = {
   bsMode: 'major', bsKeyIndex: 0,
   bsPC: null,
   bsEnhKey: null,
+  mdKeyIndex: 0,
+  mdEnhKey: null,
+  modeOrder: 'scale',  // 'scale' | 'brightness'
 };
 
 function cof(forLu) { return (forLu ? S.luMode : S.mode) === 'major' ? COF_MAJ : COF_MIN; }
+function keyObjMd() { return S.mdEnhKey ? S.mdEnhKey : COF_MAJ[S.mdKeyIndex]; }
 function keyObj(forLu) {
   if (!forLu && S.enhKey) return S.enhKey;
   if (forLu  && S.luEnhKey) return S.luEnhKey;
@@ -1203,7 +1300,8 @@ function drawCOF(svgId, selIdx, mode, onClickFn) {
       const hue = (i * 30) % 360;
       const enhActive = S && S.enhKey && S.enhKey.pc === enh.pc && S.enhKey.name === enh.name
                      || S && S.luEnhKey && S.luEnhKey.pc === enh.pc && S.luEnhKey.name === enh.name
-                     || S && S.bsEnhKey && S.bsEnhKey.pc === enh.pc && S.bsEnhKey.name === enh.name;
+                     || S && S.bsEnhKey && S.bsEnhKey.pc === enh.pc && S.bsEnhKey.name === enh.name
+                     || S && S.mdEnhKey && S.mdEnhKey.pc === enh.pc && S.mdEnhKey.name === enh.name;
       ep.setAttribute('fill', enhActive ? `hsl(${hue},35%,70%)` : '#e4dccb');
       ep.setAttribute('stroke', enhActive ? `hsl(${hue},45%,42%)` : '#b0a890');
       ep.setAttribute('stroke-width', '0.8');
@@ -1492,6 +1590,89 @@ function renderBassCOF() {
     `${k.name} ${S.bsMode}<small>Key of ${k.name}</small>`;
 }
 
+// ═══════════════════ MODES TAB
+
+function renderModesCOF() {
+  const k = keyObjMd();
+  drawCOF('cof-modes', S.mdKeyIndex, 'major', (i, enh) => {
+    S.mdKeyIndex = i;
+    S.mdEnhKey = enh ? { name: enh.name, pc: enh.pc, sharps: enh.sharps } : null;
+    renderModesCOF();
+    renderModes();
+  });
+  document.getElementById('key-display-md').innerHTML =
+    `${k.name}<small>Root note</small>`;
+}
+
+function setModeOrder(order) {
+  S.modeOrder = order;
+  document.getElementById('btn-mord-scale').classList.toggle('active', order === 'scale');
+  document.getElementById('btn-mord-bright').classList.toggle('active', order === 'brightness');
+  renderModes();
+}
+
+function renderModes() {
+  const grid = document.getElementById('modes-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  const k = keyObjMd();
+  const rootPc = k.pc;
+  const rootLI = rootLetterIdx(k.name);
+
+  const ordered = S.modeOrder === 'brightness'
+    ? [...MODES].sort((a, b) => b.brightness - a.brightness)
+    : MODES;
+
+  ordered.forEach(mode => {
+    const scalePcs = mode.intervals.map(iv => (rootPc + iv) % 12);
+    const spelling = buildDiatonicSpelling(rootLI, scalePcs);
+
+    // Parent key name for this mode (e.g. C Dorian → B♭ major)
+    const parentPc = ((rootPc - mode.parentOffset) % 12 + 12) % 12;
+    const parentKey = COF_MAJ.find(ky => ky.pc === parentPc);
+    const parentName = parentKey ? parentKey.name + ' major' : '';
+
+    const card = document.createElement('div');
+    card.className = 'mode-card';
+    card.style.setProperty('--mcolor', mode.color);
+
+    const info = document.createElement('div');
+    info.className = 'mode-info';
+    let infoHtml = `<div class="mode-title">${mode.name}</div>`;
+    if (mode.alias) infoHtml += `<div class="mode-alias">${mode.alias}</div>`;
+    if (mode.char) infoHtml += `<div class="mode-char">${mode.char}</div>`;
+    if (parentName && mode.parentOffset !== 0) {
+      infoHtml += `<div class="mode-meta"><span class="mode-parent">rel: ${parentName}</span></div>`;
+    }
+    info.innerHTML = infoHtml;
+
+    const scaleEl = document.createElement('div');
+    scaleEl.className = 'mode-scale';
+
+    scalePcs.forEach((pc, d) => {
+      const noteName = spelling[pc] || '?';
+      const chordSym = mode.chords[d];
+      const bare = chordSym.replace(/[♭♯°]/g, '');
+      let chClass = '';
+      if (chordSym.includes('°')) chClass = 'ch-dim';
+      else if (bare[0] && bare[0] === bare[0].toLowerCase()) chClass = 'ch-minor';
+
+      const cell = document.createElement('div');
+      cell.className = 'mode-cell' + (d === 0 ? ' is-root' : '');
+      cell.innerHTML =
+        `<span class="mode-chord-cell ${chClass}">${chordSym}</span>` +
+        `<span class="mode-note">${noteName}</span>` +
+        `<span class="mode-deg">${mode.degs[d]}</span>`;
+      scaleEl.appendChild(cell);
+    });
+
+    card.appendChild(info);
+    card.appendChild(scaleEl);
+    grid.appendChild(card);
+  });
+}
+
 function rebuildBassNotePicker() {
   const us = useSharpBs();
   const picker = document.getElementById('bass-note-picker');
@@ -1722,6 +1903,7 @@ function showTab(btn, id) {
     if      (fromId === 'chords') { srcIndex = S.keyIndex;   srcMode = S.mode;   srcEnh = S.enhKey;   }
     else if (fromId === 'lookup') { srcIndex = S.luKeyIndex; srcMode = S.luMode; srcEnh = S.luEnhKey; }
     else if (fromId === 'bass')   { srcIndex = S.bsKeyIndex; srcMode = S.bsMode; srcEnh = S.bsEnhKey; }
+    else if (fromId === 'modes')  { srcIndex = S.mdKeyIndex; srcMode = 'major';   srcEnh = S.mdEnhKey; }
 
     if (id === 'chords') {
       const changed = S.keyIndex !== srcIndex || S.mode !== srcMode;
@@ -1740,6 +1922,11 @@ function showTab(btn, id) {
       document.getElementById('btn-major-bs').classList.toggle('active', srcMode === 'major');
       document.getElementById('btn-minor-bs').classList.toggle('active', srcMode === 'minor');
       if (changed) document.getElementById('bass-results').innerHTML = '';
+    } else if (id === 'modes') {
+      // Modes tab uses COF_MAJ only — find matching PC in COF_MAJ
+      const srcPc = (srcMode === 'major' ? COF_MAJ : COF_MIN)[srcIndex].pc;
+      const mdIdx = COF_MAJ.findIndex(ky => ky.pc === srcPc);
+      if (mdIdx !== -1) { S.mdKeyIndex = mdIdx; S.mdEnhKey = null; }
     }
   }
 
@@ -1751,6 +1938,7 @@ function showTab(btn, id) {
   if      (id === 'chords') renderChords();
   else if (id === 'lookup') { renderLookupCOF(); rebuildNotePicker(); updateSelDisplay(); }
   else if (id === 'bass')   { renderBassCOF(); rebuildBassNotePicker(); }
+  else if (id === 'modes')  { renderModesCOF(); renderModes(); }
 }
 
 // ═══════════════════ INIT
@@ -1760,6 +1948,8 @@ renderChords();
 renderLookupCOF();
 rebuildNotePicker();
 renderBassCOF();
+renderModesCOF();
+renderModes();
 rebuildBassNotePicker();
 </script>
 </body>
