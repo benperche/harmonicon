@@ -404,7 +404,8 @@ h1 {
   min-width: 0;
 }
 .mode-cell:last-child { border-right: none; }
-.mode-cell.is-root { background: color-mix(in srgb, var(--mcolor, var(--border)) 8%, transparent); }
+.mode-cell.is-root    { background: color-mix(in srgb, var(--mcolor, var(--border)) 8%, transparent); }
+.mode-cell.is-altered { background: var(--bg2); }
 .mode-note { font-family: 'IM Fell English', serif; font-size: 1.0rem; color: var(--ink); line-height: 1; }
 .mode-cell.is-root .mode-note { color: var(--mcolor, var(--red)); }
 .mode-deg { font-size: 0.58rem; color: var(--ink3); }
@@ -1658,8 +1659,9 @@ function renderModes() {
       if (chordSym.includes('°')) chClass = 'ch-dim';
       else if (bare[0] && bare[0] === bare[0].toLowerCase()) chClass = 'ch-minor';
 
+      const isAltered = /[♭♯]/.test(mode.degs[d]);
       const cell = document.createElement('div');
-      cell.className = 'mode-cell' + (d === 0 ? ' is-root' : '');
+      cell.className = 'mode-cell' + (d === 0 ? ' is-root' : '') + (isAltered ? ' is-altered' : '');
       cell.innerHTML =
         `<span class="mode-chord-cell ${chClass}">${chordSym}</span>` +
         `<span class="mode-note">${noteName}</span>` +
