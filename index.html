@@ -1170,11 +1170,11 @@ function getDiatonicChords(rootPc, mode, useSharp) {
           { rn:'♭III', name:'Flat mediant (borrowed)',       deg:2, ivs:[0,4,7], min:false },
           { rn:'ii°',  name:'Supertonic dim. (borrowed)',    deg:1, ivs:[0,3,6], min:true  },
         ]
-      // Borrows from parallel major into minor
+      // Borrows from parallel major into minor — the standard mixture chords:
+      // major IV (Dorian-inflected subdominant) and major I (Picardy third).
       : [
-          { rn:'IV',  name:'Major subdominant (borrowed)',  deg:3, ivs:[0,4,7], min:false },
-          { rn:'II',  name:'Major supertonic (borrowed)',   deg:1, ivs:[0,4,7], min:false },
-          { rn:'♭VI', name:'Flat submediant (borrowed)',    deg:5, ivs:[0,4,7], min:false },
+          { rn:'IV', name:'Major subdominant (borrowed)', deg:3, ivs:[0,4,7], min:false },
+          { rn:'I',  name:'Major tonic (Picardy 3rd)',    deg:0, ivs:[0,4,7], min:false },
         ];
 
     borrowDefs.forEach(d => {
@@ -1465,7 +1465,8 @@ function getChordFunction(ch) {
   if (section === 'aug6' || section === 'neapolitan') return 'predominant';
   if (section === 'ct') return 'other';
   if (section === 'borrowed') {
-    if (rn === 'iv' || rn === 'ii°' || rn === 'IV' || rn === 'II') return 'predominant';
+    if (rn === 'I') return 'tonic';   // major tonic (Picardy) functions as tonic
+    if (rn === 'iv' || rn === 'ii°' || rn === 'IV') return 'predominant';
     return 'other';
   }
   if (section === 'secondary') {
