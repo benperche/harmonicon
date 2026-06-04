@@ -243,7 +243,9 @@ h1 {
 .play-btn:hover { background: var(--teal); color: #fff; border-color: var(--teal); }
 .play-btn:active { transform: scale(0.9); }
 .play-btn.playing { background: var(--teal); color: #fff; border-color: var(--teal); }
-.td-play { width: 30px; text-align: center; }
+.play-group { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.td-play { width: 56px; text-align: center; }
+.td-play .play-group { justify-content: center; }
 .td-play .play-btn { width: 19px; height: 19px; font-size: 0.55rem; }
 
 /* Inversion table */
@@ -1401,33 +1403,85 @@ function chordVoicing(noteNames, bassName) {
 
 const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
 
-// Play a set of MIDI notes as a softly-rolled chord using triangle oscillators.
-function playMidis(midis) {
+// Master output chain (gain → compressor → speakers). The compressor acts as a
+// gentle limiter so a rich, sustained chord doesn't clip. Built once per context.
+let _master = null;
+function masterOut(ctx) {
+  if (_master) return _master;
+  const comp = ctx.createDynamicsCompressor();
+  const g = ctx.createGain();
+  g.gain.value = 0.9;
+  g.connect(comp); comp.connect(ctx.destination);
+  _master = g;
+  return _master;
+}
+
+// A piano-ish timbre via additive harmonics (strong fundamental, decaying
+// partials). Cached PeriodicWave reused by every note. Far warmer than a raw
+// triangle while staying dependency-free.
+let _pianoWave = null;
+function pianoWave(ctx) {
+  if (_pianoWave) return _pianoWave;
+  const partials = [0, 1, 0.55, 0.36, 0.25, 0.17, 0.11, 0.07, 0.045, 0.03, 0.02];
+  const real = new Float32Array(partials.length); // all-zero (cosine terms)
+  _pianoWave = ctx.createPeriodicWave(real, new Float32Array(partials));
+  return _pianoWave;
+}
+
+// Play MIDI notes through the piano voice. mode:
+//   'strum'   — arpeggiated roll, each note plucked and decaying (~1.4s)
+//   'sustain' — all notes struck together, held ~2s, then released
+function playMidis(midis, mode = 'strum') {
   const ctx = audioCtx();
   if (!ctx) return;
   if (ctx.state === 'suspended') ctx.resume();
-  const now = ctx.currentTime;
-  const dur = 1.15;
+  const out  = masterOut(ctx);
+  const wave = pianoWave(ctx);
+  const now  = ctx.currentTime;
+  const sustain = mode === 'sustain';
+  const stagger = sustain ? 0 : 0.11;   // a touch slower than before
+  const ring    = sustain ? 2.0 : 1.4;  // seconds the note rings
+  const peak    = 0.13;
+
   midis.forEach((m, i) => {
+    const t0  = now + i * stagger;
     const osc = ctx.createOscillator();
-    osc.type = 'triangle';
+    osc.setPeriodicWave(wave);
     osc.frequency.value = midiToFreq(m);
+
+    // Brightness envelope: a hammered note starts bright and mellows as it rings.
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(5200, t0);
+    lp.frequency.exponentialRampToValueAtTime(1500, t0 + ring);
+
+    // Amplitude envelope: fast attack, then decay (sustain holds a plateau).
     const g = ctx.createGain();
-    const t0 = now + i * 0.035;            // gentle arpeggiated roll
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(0.16, t0 + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    osc.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(peak, t0 + 0.008);
+    if (sustain) {
+      g.gain.exponentialRampToValueAtTime(peak * 0.72, t0 + 0.3);
+      g.gain.setValueAtTime(peak * 0.72, t0 + ring - 0.3);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + ring + 0.15);
+    } else {
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + ring);
+    }
+
+    osc.connect(lp); lp.connect(g); g.connect(out);
     osc.start(t0);
-    osc.stop(t0 + dur + 0.05);
+    osc.stop(t0 + ring + 0.25);
   });
 }
 
-// HTML for a play button. data-notes = comma-separated note names (voicing order),
-// data-bass = the note to place in the bass.
-function playBtnHTML(noteNames, bassName) {
-  return `<button class="play-btn" title="Play chord" aria-label="Play chord" ` +
-    `data-notes="${noteNames.join(',')}" data-bass="${bassName}">▶</button>`;
+// HTML for the strum + sustain button pair. data-notes = comma-separated note
+// names (voicing order), data-bass = the note to place in the bass, data-mode =
+// which playback style the button triggers.
+function playControlsHTML(noteNames, bassName) {
+  const data = `data-notes="${noteNames.join(',')}" data-bass="${bassName}"`;
+  return `<span class="play-group">` +
+    `<button class="play-btn" title="Strum (arpeggiate)" aria-label="Strum chord" data-mode="strum" ${data}>▶</button>` +
+    `<button class="play-btn" title="Sustain (hold 2s)" aria-label="Sustain chord" data-mode="sustain" ${data}>∿</button>` +
+    `</span>`;
 }
 
 // One delegated, capture-phase listener handles every play button. Capture +
@@ -1440,7 +1494,7 @@ document.addEventListener('click', e => {
   const names = btn.dataset.notes.split(',').filter(Boolean);
   if (!names.length) return;
   const bass = btn.dataset.bass || names[0];
-  playMidis(chordVoicing(names, bass));
+  playMidis(chordVoicing(names, bass), btn.dataset.mode || 'strum');
   btn.classList.add('playing');
   setTimeout(() => btn.classList.remove('playing'), 320);
 }, true);
@@ -1499,7 +1553,7 @@ function buildInvWrap(ch) {
   ch.inversions.forEach(inv => {
     const tr = document.createElement('tr');
     const nHtml = renderNoteList(inv);
-    const playTd = `<td class="td-play">${playBtnHTML(inv.allNotes, inv.bassNote)}</td>`;
+    const playTd = `<td class="td-play">${playControlsHTML(inv.allNotes, inv.bassNote)}</td>`;
     if (isFixed) {
       tr.innerHTML = `
         <td class="td-bass">${inv.bassNote}</td>
@@ -1592,7 +1646,7 @@ function renderChordsFunctional(chords, grid) {
       midEl.appendChild(notesEl);
 
       const playEl = document.createElement('span');
-      playEl.innerHTML = playBtnHTML(ch.chordNotes, ch.chordNotes[0]);
+      playEl.innerHTML = playControlsHTML(ch.chordNotes, ch.chordNotes[0]);
 
       const expIcon = document.createElement('span');
       expIcon.className = 'func-expand-icon';
@@ -1673,7 +1727,7 @@ function renderChords() {
       <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${ch.rn}</span>
       <span class="chord-name">${ch.name}</span>
       <span class="chord-notes-sum">${notesSummary}</span>
-      ${playBtnHTML(ch.chordNotes, ch.chordNotes[0])}
+      ${playControlsHTML(ch.chordNotes, ch.chordNotes[0])}
       <span class="expand-icon">▼</span>`;
     hdr.addEventListener('click', () => card.classList.toggle('open'));
 
