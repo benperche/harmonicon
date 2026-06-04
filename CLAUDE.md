@@ -33,10 +33,17 @@ Pitch classes are integers 0–11. Two ways to turn a pc into a note name:
 2. **`spellByLetter(letterIdx, pc)`** — spells `pc` on a *specific letter* (0=C..6=B,
    taken mod 7). The accidental is derived from the gap between `pc` and that
    letter's natural pc, so it can yield single **and double** accidentals. This is
-   how scale-degree-locked chromatic chords must be spelled.
+   how scale-degree-locked chromatic chords must be spelled. `buildDiatonicSpelling`
+   is a thin wrapper that calls it for each scale degree.
+3. **`spellStack(rootLetterIdx, pcArr)`** — spells a root-position tertian
+   (stacked-thirds) chord: members advance by a third, so letters advance by two
+   each (C–E–G–B). Use for any built-by-interval chord whose members may be
+   chromatic to the key (CT°7, CT V7, borrowed major triads). Passing the chord's
+   own root letter keeps every member correctly spelled.
 
 `rli` inside `getDiatonicChords` is the tonic's letter index. "The Nth letter above
-the tonic" is `rli + (N-1)`.
+the tonic" is `rli + (N-1)`. The CT and borrowed chords pass `rli + <degree>` as the
+chord-root letter to `spellStack`.
 
 ## Augmented 6th chords (the strict rules)
 

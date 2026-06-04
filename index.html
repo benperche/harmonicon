@@ -230,6 +230,22 @@ h1 {
 .expand-icon { font-size: 0.58rem; color: var(--ink3); transition: transform 0.18s; }
 .chord-card.open .expand-icon { transform: rotate(180deg); }
 
+/* Play (audio) button */
+.play-btn {
+  flex: none; cursor: pointer; font-family: inherit;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0;
+  border: 1px solid var(--border); border-radius: 50%;
+  background: var(--bg2); color: var(--ink2);
+  font-size: 0.62rem; line-height: 1;
+  transition: background 0.12s, color 0.12s, transform 0.08s;
+}
+.play-btn:hover { background: var(--teal); color: #fff; border-color: var(--teal); }
+.play-btn:active { transform: scale(0.9); }
+.play-btn.playing { background: var(--teal); color: #fff; border-color: var(--teal); }
+.td-play { width: 30px; text-align: center; }
+.td-play .play-btn { width: 19px; height: 19px; font-size: 0.55rem; }
+
 /* Inversion table */
 .inv-wrap { display: none; padding: 9px 11px 11px; }
 .chord-card.open .inv-wrap { display: block; }
@@ -628,23 +644,12 @@ const LETTER_PC    = [  0,  2,  4,  5,  7,  9, 11];
 // Given a scale root letter index (0=C..6=B) and a scale pitch class array,
 // build a map: pitchClass → spelled note name, based on diatonic thirds.
 // This ensures e.g. in D minor the leading tone is C♯ not D♭.
+// Each degree is spelled on its consecutive letter name via spellByLetter().
 function buildDiatonicSpelling(rootLetterIdx, scalePcs) {
-  // The 7 scale degrees are spelled on consecutive letter names
   const spelling = {}; // pc → note name
   for (let deg = 0; deg < 7; deg++) {
-    const letterIdx = (rootLetterIdx + deg) % 7;
-    const letter    = LETTERS[letterIdx];
-    const naturalPc = LETTER_PC[letterIdx];
-    const actualPc  = ((scalePcs[deg] % 12) + 12) % 12;
-    const diff      = ((actualPc - naturalPc + 12) % 12);
-    let name;
-    if      (diff === 0)  name = letter;
-    else if (diff === 1)  name = letter + '♯';
-    else if (diff === 2)  name = letter + '𝄪'; // double sharp (rare)
-    else if (diff === 11) name = letter + '♭';
-    else if (diff === 10) name = letter + '𝄫'; // double flat (rare)
-    else                  name = nn(actualPc, true); // fallback
-    spelling[actualPc] = name;
+    const actualPc = ((scalePcs[deg] % 12) + 12) % 12;
+    spelling[actualPc] = spellByLetter(rootLetterIdx + deg, actualPc);
   }
   return spelling;
 }
@@ -671,29 +676,20 @@ function spellByLetter(letterIdx, pc) {
   return nn(actualPc, true); // fallback (tritone away — should not occur here)
 }
 
+// Spell a root-position tertian (stacked-thirds) chord by letter. Each chord
+// member sits a third above the previous, so the letters advance by two each
+// step (e.g. C–E–G–B). Given the chord root's letter index and the pcs in
+// root-position order, this returns correctly-spelled note names — including
+// the double accidentals that are genuinely correct in remote keys.
+function spellStack(rootLetterIdx, pcArr) {
+  return pcArr.map((p, i) => spellByLetter(rootLetterIdx + 2 * i, p));
+}
+
 // Root letter index from a key's pitch class and mode
 // We look up the COF entry's name letter to get the right index.
 function rootLetterIdx(keyName) {
   const base = keyName.replace(/[♯♭]/g, '');
   return LETTERS.indexOf(base);
-}
-
-// Spell a pitch class using a diatonic spelling map, falling back to chromatic.
-// For chromatic alterations not in the scale (like the leading tone ♯7 in minor),
-// we derive the spelling from the scale's 7th degree + sharp.
-function spellPc(pc, spelling, scale7thPc, scale7thName) {
-  const norm = ((pc % 12) + 12) % 12;
-  if (spelling[norm] !== undefined) return spelling[norm];
-  // Leading tone: one semitone above the 7th degree
-  const lt = ((scale7thPc + 1) % 12);
-  if (norm === lt) {
-    // Raise the 7th degree's letter by a sharp
-    const base = scale7thName.replace(/[♯♭]/g, '');
-    const existing = scale7thName.includes('♭') ? '' : '♯';
-    return base + (scale7thName.includes('♭') ? '' : '♯');
-  }
-  // Fallback for other chromatic tones (e.g. in aug6/CT chords — those handle spelling themselves)
-  return null;
 }
 
 const COF_MAJ = [
@@ -1067,11 +1063,11 @@ function getDiatonicChords(rootPc, mode, useSharp) {
 
   const ct = [];
   {
-    // CT°7 → I: dim7 on ♯^1, CT = ^1
+    // CT°7 → I: dim7 on ♯^1, CT = ^1. Members ♯1̂–3̂–5̂–♭7̂ (e.g. C: C♯–E–G–B♭).
     const ctIRoot  = (rootPc + 1) % 12;
     const ctIPcs   = [0,3,6,9].map(iv => (ctIRoot + iv) % 12);
-    const ctINotes = ctIPcs.map(p => nn(p, useSharp));
-    const ctINote  = nn(rootPc, useSharp); // the sustained common tone
+    const ctINotes = spellStack(rli, ctIPcs);        // root letter = tonic (♯1̂)
+    const ctINote  = spellByLetter(rli, rootPc);     // the sustained common tone ^1
     ct.push({
       rn: 'CT°⁷', name: `Common-tone dim. 7th → I  (CT = ${ctINote})`,
       triadNotes: ctINotes.slice(0,3), note7: ctINotes[3],
@@ -1082,11 +1078,11 @@ function getDiatonicChords(rootPc, mode, useSharp) {
       fbType: 'fixed', min: false, section: 'ct',
     });
 
-    // CT°7 → V: dim7 on ♯^5, CT = ^5
+    // CT°7 → V: dim7 on ♯^5, CT = ^5. Members ♯5̂–7̂–2̂–4̂ (e.g. C: G♯–B–D–F).
     const ctVRoot  = (pcs[4] + 1) % 12;
     const ctVPcs   = [0,3,6,9].map(iv => (ctVRoot + iv) % 12);
-    const ctVNotes = ctVPcs.map(p => nn(p, useSharp));
-    const ctVNote  = nn(pcs[4], useSharp); // the sustained CT = ^5
+    const ctVNotes = spellStack(rli + 4, ctVPcs);    // root letter = dominant (♯5̂)
+    const ctVNote  = spellByLetter(rli + 4, pcs[4]); // the sustained CT = ^5
     ct.push({
       rn: 'CT°⁷/V', name: `Common-tone dim. 7th → V  (CT = ${ctVNote})`,
       triadNotes: ctVNotes.slice(0,3), note7: ctVNotes[3],
@@ -1097,11 +1093,12 @@ function getDiatonicChords(rootPc, mode, useSharp) {
       fbType: 'fixed', min: false, section: 'ct',
     });
 
-    // CT V7 → I: dom7 on ♭^6, CT = ^1 (tonic is the 3rd of this chord)
+    // CT V7 → I: dom7 on ♭^6, CT = ^1 (tonic is the 3rd of this chord).
+    // Members ♭6̂–1̂–♭3̂–♭5̂ (e.g. C: A♭–C–E♭–G♭).
     const ctV7Root  = (rootPc + 8) % 12;  // ♭^6
     const ctV7Pcs   = [0,4,7,10].map(iv => (ctV7Root + iv) % 12);
-    const ctV7Notes = ctV7Pcs.map(p => nn(p, useSharp));
-    const ctV7CT    = nn(rootPc, useSharp); // ^1 appears as the major 3rd of ♭^6 chord
+    const ctV7Notes = spellStack(rli + 5, ctV7Pcs);  // root letter = submediant (♭6̂)
+    const ctV7CT    = spellByLetter(rli, rootPc);    // ^1 = major 3rd of the ♭6̂ chord
     ct.push({
       rn: 'CT V⁷', name: `Common-tone dominant 7th → I  (CT = ${ctV7CT})`,
       triadNotes: ctV7Notes.slice(0,3), note7: ctV7Notes[3],
@@ -1152,7 +1149,9 @@ function getDiatonicChords(rootPc, mode, useSharp) {
   // ── Borrowed Chords (Modal Mixture) ──────────────────────────────────────
   // Borrowed chords are taken from the parallel minor (in a major key) or
   // parallel major (in a minor key). Only the most common ones are listed.
-  // Spelling follows the parallel minor/major scale — borrowed degrees use flats.
+  // Each is a tertian triad rooted on a parallel-scale degree, so it is spelled
+  // by scale degree with spellStack() — `deg` is the root's index into the
+  // parallel scale (0=1̂ … 6=7̂), i.e. its letter offset above the tonic.
 
   const borrowed = [];
   {
@@ -1162,60 +1161,33 @@ function getDiatonicChords(rootPc, mode, useSharp) {
       : [0,2,4,5,7,9,11];  // parallel major
     const pPcs = parallelScale.map(s => (rootPc + s) % 12);
 
-    // Spelling for the parallel scale
-    const pSpell = buildDiatonicSpelling(rli, pPcs);
-    function spellP(pc) {
-      const norm = ((pc%12)+12)%12;
-      return pSpell[norm] !== undefined ? pSpell[norm] : nn(norm, false);
-    }
+    const borrowDefs = mode === 'major'
+      // Borrows from parallel minor into major
+      ? [
+          { rn:'iv',   name:'Minor subdominant (borrowed)',  deg:3, ivs:[0,3,7], min:true  },
+          { rn:'♭VII', name:'Flat subtonic (borrowed)',      deg:6, ivs:[0,4,7], min:false },
+          { rn:'♭VI',  name:'Flat submediant (borrowed)',    deg:5, ivs:[0,4,7], min:false },
+          { rn:'♭III', name:'Flat mediant (borrowed)',       deg:2, ivs:[0,4,7], min:false },
+          { rn:'ii°',  name:'Supertonic dim. (borrowed)',    deg:1, ivs:[0,3,6], min:true  },
+        ]
+      // Borrows from parallel major into minor
+      : [
+          { rn:'IV',  name:'Major subdominant (borrowed)',  deg:3, ivs:[0,4,7], min:false },
+          { rn:'II',  name:'Major supertonic (borrowed)',   deg:1, ivs:[0,4,7], min:false },
+          { rn:'♭VI', name:'Flat submediant (borrowed)',    deg:5, ivs:[0,4,7], min:false },
+        ];
 
-    if (mode === 'major') {
-      // Common borrows from parallel minor into major:
-      // iv  — minor subdominant (pcs[3] = ^4, minor triad)
-      // ♭VII — subtonic major triad (pcs[6] = ♭^7)
-      // ♭VI  — flat submediant major triad (pcs[5] = ♭^6)
-      // ♭III — flat mediant major triad (pcs[2] = ♭^3)
-      // ii°  — supertonic diminished (pcs[1] = ^2, dim triad from minor)
-
-      const borrowDefs = [
-        { rn:'iv',   name:'Minor subdominant (borrowed)',  rootP: pPcs[3], ivs:[0,3,7], min:true  },
-        { rn:'♭VII', name:'Flat subtonic (borrowed)',      rootP: pPcs[6], ivs:[0,4,7], min:false },
-        { rn:'♭VI',  name:'Flat submediant (borrowed)',    rootP: pPcs[5], ivs:[0,4,7], min:false },
-        { rn:'♭III', name:'Flat mediant (borrowed)',       rootP: pPcs[2], ivs:[0,4,7], min:false },
-        { rn:'ii°',  name:'Supertonic dim. (borrowed)',    rootP: pPcs[1], ivs:[0,3,6], min:true  },
-      ];
-      borrowDefs.forEach(d => {
-        const tPcs   = d.ivs.map(iv => ((d.rootP + iv) % 12 + 12) % 12);
-        const tNotes = tPcs.map(p => spellP(p));
-        borrowed.push({
-          rn: d.rn, name: d.name, rootP: d.rootP,
-          chordPcs: tPcs, triadNotes: tNotes, note7: null, chordNotes: tNotes,
-          inversions: inversions(d.rn, 'triad7', tNotes, null),
-          fbType: 'triad7', min: d.min, section: 'borrowed',
-        });
+    borrowDefs.forEach(d => {
+      const rootP  = pPcs[d.deg];
+      const tPcs   = d.ivs.map(iv => ((rootP + iv) % 12 + 12) % 12);
+      const tNotes = spellStack(rli + d.deg, tPcs); // root letter = tonic + degree
+      borrowed.push({
+        rn: d.rn, name: d.name, rootP,
+        chordPcs: tPcs, triadNotes: tNotes, note7: null, chordNotes: tNotes,
+        inversions: inversions(d.rn, 'triad7', tNotes, null),
+        fbType: 'triad7', min: d.min, section: 'borrowed',
       });
-    } else {
-      // Common borrows from parallel major into minor:
-      // IV  — major subdominant
-      // I   — tonic major (Picardy third context, or just major I)
-      // ♭VII is already diatonic in minor, so skip
-
-      const borrowDefs = [
-        { rn:'IV',  name:'Major subdominant (borrowed)',  rootP: pPcs[3], ivs:[0,4,7], min:false },
-        { rn:'II',  name:'Major supertonic (borrowed)',   rootP: pPcs[1], ivs:[0,4,7], min:false },
-        { rn:'♭VI', name:'Flat submediant (borrowed)',    rootP: pPcs[5], ivs:[0,4,7], min:false },
-      ];
-      borrowDefs.forEach(d => {
-        const tPcs   = d.ivs.map(iv => ((d.rootP + iv) % 12 + 12) % 12);
-        const tNotes = tPcs.map(p => spellP(p));
-        borrowed.push({
-          rn: d.rn, name: d.name, rootP: d.rootP,
-          chordPcs: tPcs, triadNotes: tNotes, note7: null, chordNotes: tNotes,
-          inversions: inversions(d.rn, 'triad7', tNotes, null),
-          fbType: 'triad7', min: d.min, section: 'borrowed',
-        });
-      });
-    }
+    });
   }
 
   return [...diatonic, ...secondary, ...aug6, ...neapolitan, ...borrowed, ...ct];
@@ -1383,7 +1355,110 @@ function drawCOF(svgId, selIdx, mode, onClickFn) {
   svg.appendChild(ct);
 }
 
+// ═══════════════════ AUDIO PLAYBACK
+
+// Lazily-created AudioContext (browsers require a user gesture to start it).
+let _audioCtx = null;
+function audioCtx() {
+  if (!_audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    _audioCtx = new AC();
+  }
+  return _audioCtx;
+}
+
+// Note name → pitch class (0–11), handling ♯ ♭ 𝄪 𝄫 (multi-codepoint glyphs).
+function noteNameToPc(name) {
+  const chars = Array.from(name);
+  let pc = LETTER_PC[LETTERS.indexOf(chars[0])];
+  for (let i = 1; i < chars.length; i++) {
+    if      (chars[i] === '♯') pc += 1;
+    else if (chars[i] === '♭') pc -= 1;
+    else if (chars[i] === '𝄪') pc += 2;
+    else if (chars[i] === '𝄫') pc -= 2;
+  }
+  return ((pc % 12) + 12) % 12;
+}
+
+// Turn an ordered list of note names into MIDI numbers for a playable voicing:
+// the bass note sits lowest (around C3), each remaining note stacked just above
+// the previous one, so inversions sound with the correct note in the bass.
+function chordVoicing(noteNames, bassName) {
+  const bassPc = noteNameToPc(bassName);
+  const bassMidi = 48 + bassPc;            // C3 = MIDI 48
+  const midis = [bassMidi];
+  let prev = bassMidi;
+  noteNames.forEach(n => {
+    if (n === bassName) return;
+    let m = 48 + noteNameToPc(n);
+    while (m <= prev) m += 12;
+    midis.push(m);
+    prev = m;
+  });
+  return midis;
+}
+
+const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
+
+// Play a set of MIDI notes as a softly-rolled chord using triangle oscillators.
+function playMidis(midis) {
+  const ctx = audioCtx();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const now = ctx.currentTime;
+  const dur = 1.15;
+  midis.forEach((m, i) => {
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = midiToFreq(m);
+    const g = ctx.createGain();
+    const t0 = now + i * 0.035;            // gentle arpeggiated roll
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.16, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.05);
+  });
+}
+
+// HTML for a play button. data-notes = comma-separated note names (voicing order),
+// data-bass = the note to place in the bass.
+function playBtnHTML(noteNames, bassName) {
+  return `<button class="play-btn" title="Play chord" aria-label="Play chord" ` +
+    `data-notes="${noteNames.join(',')}" data-bass="${bassName}">▶</button>`;
+}
+
+// One delegated, capture-phase listener handles every play button. Capture +
+// stopPropagation keeps the click from also toggling the card/tile it sits in.
+document.addEventListener('click', e => {
+  const btn = e.target.closest && e.target.closest('.play-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  const names = btn.dataset.notes.split(',').filter(Boolean);
+  if (!names.length) return;
+  const bass = btn.dataset.bass || names[0];
+  playMidis(chordVoicing(names, bass));
+  btn.classList.add('playing');
+  setTimeout(() => btn.classList.remove('playing'), 320);
+}, true);
+
 // ═══════════════════ RENDER CHORD REFERENCE
+
+// Render an inversion's notes to HTML: bass note underlined, an optional 7th
+// labelled "(7th: …)". Essential chord tones (aug6 French ^2 / German b̂3,
+// flagged essential7) are NOT bracketed — they render as plain tones.
+function renderNoteList(inv) {
+  return inv.allNotes.map(n => {
+    if (n === inv.bassNote && !inv.note7inBass) return `<span class="bass-hl">${n}</span>`;
+    if (inv.note7inBass && n === inv.note7)     return `<span class="bass-hl">${n}</span>`;
+    if (inv.note7 && n === inv.note7 && !inv.note7inBass && !inv.essential7)
+      return `<span class="note-seventh">(7th: ${n})</span>`;
+    return n;
+  }).join(' ');
+}
 
 function getChordFunction(ch) {
   const { rn, section } = ch;
@@ -1416,29 +1491,25 @@ function buildInvWrap(ch) {
   tbl.className = 'inv-table';
 
   tbl.innerHTML = isFixed
-    ? `<thead><tr><th>Bass</th><th>Chord name</th><th>Chord tones</th></tr></thead>`
-    : `<thead><tr><th>Bass</th><th>Roman numeral</th><th>Inversion</th><th>Chord tones</th></tr></thead>`;
+    ? `<thead><tr><th>Bass</th><th>Chord name</th><th>Chord tones</th><th></th></tr></thead>`
+    : `<thead><tr><th>Bass</th><th>Roman numeral</th><th>Inversion</th><th>Chord tones</th><th></th></tr></thead>`;
 
   const tbody = document.createElement('tbody');
   ch.inversions.forEach(inv => {
     const tr = document.createElement('tr');
-    const nHtml = inv.allNotes.map(n => {
-      if (n === inv.bassNote && !inv.note7inBass) return `<span class="bass-hl">${n}</span>`;
-      if (inv.note7inBass && n === inv.note7) return `<span class="bass-hl">${n}</span>`;
-      if (inv.note7 && n === inv.note7 && !inv.note7inBass && !inv.essential7) return `<span class="note-seventh">(7th: ${n})</span>`;
-      return n;
-    }).join(' ');
+    const nHtml = renderNoteList(inv);
+    const playTd = `<td class="td-play">${playBtnHTML(inv.allNotes, inv.bassNote)}</td>`;
     if (isFixed) {
       tr.innerHTML = `
         <td class="td-bass">${inv.bassNote}</td>
         <td class="td-rn ${isSpec?'special':''}">${inv.rnDisplay}</td>
-        <td class="td-notes">${nHtml}</td>`;
+        <td class="td-notes">${nHtml}</td>${playTd}`;
     } else {
       tr.innerHTML = `
         <td class="td-bass">${inv.bassNote}</td>
         <td class="td-rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${inv.rnDisplay}</td>
         <td class="td-inv">${inv.inv}</td>
-        <td class="td-notes">${nHtml}</td>`;
+        <td class="td-notes">${nHtml}</td>${playTd}`;
     }
     tbody.appendChild(tr);
   });
@@ -1519,12 +1590,16 @@ function renderChordsFunctional(chords, grid) {
       midEl.appendChild(nameEl);
       midEl.appendChild(notesEl);
 
+      const playEl = document.createElement('span');
+      playEl.innerHTML = playBtnHTML(ch.chordNotes, ch.chordNotes[0]);
+
       const expIcon = document.createElement('span');
       expIcon.className = 'func-expand-icon';
       expIcon.textContent = '▼';
 
       tileHdr.appendChild(rnEl);
       tileHdr.appendChild(midEl);
+      tileHdr.appendChild(playEl.firstElementChild);
       tileHdr.appendChild(expIcon);
 
       // ── Inversion table (hidden until expanded) ──
@@ -1597,6 +1672,7 @@ function renderChords() {
       <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${ch.rn}</span>
       <span class="chord-name">${ch.name}</span>
       <span class="chord-notes-sum">${notesSummary}</span>
+      ${playBtnHTML(ch.chordNotes, ch.chordNotes[0])}
       <span class="expand-icon">▼</span>`;
     hdr.addEventListener('click', () => card.classList.toggle('open'));
 
@@ -1814,15 +1890,7 @@ function identifyFromBass() {
     row.className = 'bass-result-row';
 
     // Notes HTML: bass underlined, 7th labelled
-    const nHtml = inv.allNotes.map(n => {
-      if (n === inv.bassNote && !inv.note7inBass)
-        return `<span class="bass-hl">${n}</span>`;
-      if (inv.note7inBass && n === inv.note7)
-        return `<span class="bass-hl">${n}</span>`;
-      if (inv.note7 && n === inv.note7 && !inv.note7inBass && !inv.essential7)
-        return `<span class="note-seventh">(7th: ${n})</span>`;
-      return n;
-    }).join(' ');
+    const nHtml = renderNoteList(inv);
 
     const rnClass = `rn-inline ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}`.trim();
 
@@ -1907,15 +1975,7 @@ function findChord() {
     matchedInvs.forEach(inv => {
       const line = document.createElement('p');
       line.className = 'result-inv-line';
-      const nHtml = inv.allNotes.map(n => {
-        if (n === inv.bassNote && !inv.note7inBass)
-          return `<span class="bass-hl">${n}</span>`;
-        if (inv.note7inBass && n === inv.note7)
-          return `<span class="bass-hl">${n}</span>`;
-        if (inv.note7 && n === inv.note7 && !inv.note7inBass && !inv.essential7)
-          return `<span class="note-seventh">(7th: ${n})</span>`;
-        return n;
-      }).join(' ');
+      const nHtml = renderNoteList(inv);
       line.innerHTML = `<strong>${inv.rnDisplay}</strong> — ${inv.inv} &nbsp;·&nbsp; ${nHtml}`;
       card.appendChild(line);
     });
