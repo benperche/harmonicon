@@ -90,6 +90,13 @@ Dependency-free Web Audio (section "AUDIO PLAYBACK" in `index.html`):
 - **UI:** `playControlsHTML` emits the ▶ strum / ∿ sustain pair. A single
   capture-phase delegated `click` listener handles every `.play-btn` and calls
   `stopPropagation` so playing doesn't toggle the card/tile open.
+- **Optional 7th:** the Playback panel toggles `S.play7th` (default `false` =
+  triad only) via `setPlay7th`. Each button carries `data-opt7` = the removable
+  7th's note name; the click handler drops it when `!S.play7th`. `data-opt7` is
+  only set when the 7th is genuinely optional — never for an essential 7th
+  (aug6 French/German, `essential7`) or one sitting in the bass (`note7inBass`,
+  e.g. a ⁴₂ inversion). The displayed `(7th: …)` bracket is unchanged; only
+  playback responds, so no re-render is needed on toggle.
 
 ## Verifying changes
 

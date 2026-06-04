@@ -505,6 +505,13 @@ h1 {
           <button class="mode-btn" id="btn-view-function" onclick="setChordView('function')">By Function</button>
         </div>
       </div>
+      <div class="panel">
+        <div class="panel-title">Playback</div>
+        <div class="mode-row">
+          <button class="mode-btn" id="btn-play-7th" onclick="setPlay7th(true)">With 7th</button>
+          <button class="mode-btn active" id="btn-play-triad" onclick="setPlay7th(false)">Triad only</button>
+        </div>
+      </div>
     </div>
     <div class="panel">
       <div class="panel-title" id="chord-panel-title">Diatonic Chords &amp; Inversions</div>
@@ -1200,6 +1207,7 @@ function getDiatonicChords(rootPc, mode, useSharp) {
 const S = {
   mode: 'major', keyIndex: 0,
   chordView: 'section',  // 'section' | 'function'
+  play7th: false,        // include the optional 7th in playback (vs triad only)
   spellingPref: 'auto',  // 'auto' | 'sharps' | 'flats'
   enhKey: null,       // enharmonic key override {name, pc, sharps} when outer ring clicked
   luMode: 'major', luKeyIndex: 0,
@@ -1475,9 +1483,11 @@ function playMidis(midis, mode = 'strum') {
 
 // HTML for the strum + sustain button pair. data-notes = comma-separated note
 // names (voicing order), data-bass = the note to place in the bass, data-mode =
-// which playback style the button triggers.
-function playControlsHTML(noteNames, bassName) {
-  const data = `data-notes="${noteNames.join(',')}" data-bass="${bassName}"`;
+// which playback style the button triggers, data-opt7 = the optional 7th to drop
+// when "Triad only" is selected (omitted when there is no removable 7th).
+function playControlsHTML(noteNames, bassName, opt7) {
+  const data = `data-notes="${noteNames.join(',')}" data-bass="${bassName}"` +
+    (opt7 ? ` data-opt7="${opt7}"` : '');
   return `<span class="play-group">` +
     `<button class="play-btn" title="Strum (arpeggiate)" aria-label="Strum chord" data-mode="strum" ${data}>▶</button>` +
     `<button class="play-btn" title="Sustain (hold 2s)" aria-label="Sustain chord" data-mode="sustain" ${data}>∿</button>` +
@@ -1491,8 +1501,10 @@ document.addEventListener('click', e => {
   if (!btn) return;
   e.stopPropagation();
   e.preventDefault();
-  const names = btn.dataset.notes.split(',').filter(Boolean);
+  let names = btn.dataset.notes.split(',').filter(Boolean);
   if (!names.length) return;
+  const opt7 = btn.dataset.opt7;
+  if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
   const bass = btn.dataset.bass || names[0];
   playMidis(chordVoicing(names, bass), btn.dataset.mode || 'strum');
   btn.classList.add('playing');
@@ -1553,7 +1565,8 @@ function buildInvWrap(ch) {
   ch.inversions.forEach(inv => {
     const tr = document.createElement('tr');
     const nHtml = renderNoteList(inv);
-    const playTd = `<td class="td-play">${playControlsHTML(inv.allNotes, inv.bassNote)}</td>`;
+    const invOpt7 = (inv.note7 && !inv.essential7 && !inv.note7inBass) ? inv.note7 : null;
+    const playTd = `<td class="td-play">${playControlsHTML(inv.allNotes, inv.bassNote, invOpt7)}</td>`;
     if (isFixed) {
       tr.innerHTML = `
         <td class="td-bass">${inv.bassNote}</td>
@@ -1646,7 +1659,8 @@ function renderChordsFunctional(chords, grid) {
       midEl.appendChild(notesEl);
 
       const playEl = document.createElement('span');
-      playEl.innerHTML = playControlsHTML(ch.chordNotes, ch.chordNotes[0]);
+      playEl.innerHTML = playControlsHTML(ch.chordNotes, ch.chordNotes[0],
+        (ch.note7 && !ch.essential7) ? ch.note7 : null);
 
       const expIcon = document.createElement('span');
       expIcon.className = 'func-expand-icon';
@@ -1727,7 +1741,7 @@ function renderChords() {
       <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${ch.rn}</span>
       <span class="chord-name">${ch.name}</span>
       <span class="chord-notes-sum">${notesSummary}</span>
-      ${playControlsHTML(ch.chordNotes, ch.chordNotes[0])}
+      ${playControlsHTML(ch.chordNotes, ch.chordNotes[0], (ch.note7 && !ch.essential7) ? ch.note7 : null)}
       <span class="expand-icon">▼</span>`;
     hdr.addEventListener('click', () => card.classList.toggle('open'));
 
@@ -2074,6 +2088,14 @@ function setChordView(view) {
   document.getElementById('btn-view-section').classList.toggle('active', view === 'section');
   document.getElementById('btn-view-function').classList.toggle('active', view === 'function');
   renderChords();
+}
+
+// Whether playback includes the optional 7th. Read at click time, so no
+// re-render is needed — the displayed (7th: …) bracket is unaffected.
+function setPlay7th(on) {
+  S.play7th = on;
+  document.getElementById('btn-play-7th').classList.toggle('active', on);
+  document.getElementById('btn-play-triad').classList.toggle('active', !on);
 }
 
 function showTab(btn, id) {
