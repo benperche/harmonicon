@@ -98,6 +98,22 @@ Dependency-free Web Audio (section "AUDIO PLAYBACK" in `index.html`):
   e.g. a ⁴₂ inversion). The displayed `(7th: …)` bracket is unchanged; only
   playback responds, so no re-render is needed on toggle.
 
+## Piano keyboard
+
+Fixed bottom bar (`#piano-bar`), section "PIANO KEYBOARD" in `index.html`:
+
+- `buildPiano()` lays out keys for MIDI `PIANO_LO..PIANO_HI` (C3–E6, wide enough
+  for every voicing): white keys flow, black keys absolutely positioned over the
+  gaps. Each key carries `data-midi`. Called once in init.
+- Clicking a key plays that single note (`playMidis([m])`) and flashes it.
+- Playing any chord calls `highlightChord(voicing, names, label)` — the SAME
+  voicing that sounds — lighting the bass (lowest note) red and the rest teal,
+  with the Roman numeral + spelled notes shown in `#piano-label`. The play
+  button's `data-label` carries the RN. So "Triad only" / inversion choice is
+  reflected on the keyboard automatically.
+- `togglePiano()` collapses the bar (and shrinks `body` padding via
+  `body.piano-collapsed`). On narrow screens `#piano-scroll` scrolls horizontally.
+
 ## Verifying changes
 
 Serve and drive the page; the builder is callable directly:
