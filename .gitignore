@@ -8,3 +8,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Claude Code local machine settings (permission allowlist etc.)
+.claude/settings.local.json

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Release Notes</title>
+<style>
+  body { font-family: sans-serif; background: #1e1e1e; display: flex; justify-content: center; padding: 24px; margin: 0; }
+  textarea {
+    width: 100%; max-width: 680px; height: 100vh; max-height: 560px;
+    background: #2a2a2a; color: #e8e8e8; border: 1px solid #444;
+    border-radius: 6px; padding: 18px; font-family: 'Courier New', monospace;
+    font-size: 13px; line-height: 1.65; resize: vertical;
+    box-sizing: border-box;
+  }
+  textarea:focus { outline: 2px solid #5a9; border-color: #5a9; }
+</style>
+</head>
+<body>
+<textarea onclick="this.select()">## Harmonicon v1.4 — Modes Tab
+
+### New feature: Church Modes
+
+A new **Modes** tab has been added alongside the existing Chord Reference, Chord Lookup, and Bass Note tabs.
+
+#### What it shows
+Select any root note on the circle of fifths and the tab lays out all seven church modes built from that root — Ionian through Locrian — as a row of scale cells. Each cell displays the note name, scale degree, and the diatonic chord built on that degree, giving a complete picture of the mode at a glance without needing to expand anything.
+
+#### Ordering
+Modes can be displayed in two orders, switchable at any time:
+- **Scale** — the traditional white-note order (Ionian, Dorian, Phrygian, Lydian, Mixolydian, Aeolian, Locrian)
+- **Brightness** — arranged from brightest to darkest along the modal spectrum, as popularised by Jacob Collier (Lydian → Locrian)
+
+#### Altered note shading
+A **Major / Minor** reference toggle sets whether notes are compared against the Ionian (major) or Aeolian (natural minor) scale. Any degree that differs from the reference is lightly tinted in the mode's own colour, making it immediately obvious what makes each mode distinctive — for example, in Minor mode Dorian lights up only its raised 6th, showing how close it sits to natural minor.
+
+#### Key sync
+Switching to the Modes tab carries over the root note from whichever tab you were on, consistent with the behaviour of the other tabs.</textarea>
+</body>
+</html>

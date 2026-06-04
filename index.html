@@ -255,9 +255,9 @@ h1 {
 .td-rn.minor-rn { font-style: italic; }
 .td-rn.secondary { color: var(--purple); }
 .td-inv { color: var(--ink3); font-size: 0.74rem; width: 128px; }
-.td-notes { color: var(--ink2); font-size: 0.8rem; }
+.td-notes { color: var(--ink2); font-size: 0.8rem; word-spacing: 0.35em; }
 .bass-hl { color: var(--red); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
-.note-seventh { color: var(--ink3); font-style: italic; }
+.note-seventh { color: var(--ink3); font-style: italic; word-spacing: normal; }
 .rn.special { color: var(--green); }
 .td-rn.special { color: var(--green); }
 
@@ -649,6 +649,28 @@ function buildDiatonicSpelling(rootLetterIdx, scalePcs) {
   return spelling;
 }
 
+// Spell a pitch class on a SPECIFIC letter name (scale-degree spelling).
+// letterIdx is a letter position 0=C..6=B (it is taken mod 7, so callers may
+// pass rli+5 etc. for "the 6th letter above the tonic"). The accidental is
+// derived from the distance between the target pc and that letter's natural pc,
+// so e.g. spellByLetter(C, pc=11) → 'C♭' and spellByLetter(D, pc=9) → 'D𝄫'.
+// This is how chromatic chords whose members have a FIXED scale-degree identity
+// (augmented 6ths, Neapolitan, etc.) must be spelled — by letter, not by the
+// key's generic sharp/flat preference.
+function spellByLetter(letterIdx, pc) {
+  const li        = ((letterIdx % 7) + 7) % 7;
+  const letter    = LETTERS[li];
+  const naturalPc = LETTER_PC[li];
+  const actualPc  = ((pc % 12) + 12) % 12;
+  const diff      = ((actualPc - naturalPc) % 12 + 12) % 12;
+  if (diff === 0)  return letter;
+  if (diff === 1)  return letter + '♯';
+  if (diff === 2)  return letter + '𝄪'; // double sharp
+  if (diff === 11) return letter + '♭';
+  if (diff === 10) return letter + '𝄫'; // double flat
+  return nn(actualPc, true); // fallback (tritone away — should not occur here)
+}
+
 // Root letter index from a key's pitch class and mode
 // We look up the COF entry's name letter to get the right index.
 function rootLetterIdx(keyName) {
@@ -956,16 +978,25 @@ function getDiatonicChords(rootPc, mode, useSharp) {
   }
 
   // ── Augmented Sixth Chords ───────────────────────────────────────────────
-  // All three types have b̂6 in the bass and ♯^4 as the top note (augmented 6th interval).
-  // b̂6 = rootPc+8, ^1 = rootPc, ♯^4 = rootPc+6
+  // All three types have b̂6 in the bass and ♯^4 as the top note. The interval
+  // between them is an augmented 6th, which is the defining feature — so both
+  // notes MUST keep their scale-degree spelling regardless of the key.
   // Italian:  b̂6 – ^1 – ♯^4           (3 voices)
-  // French:   b̂6 – ^1 – ^2 – ♯^4      (adds ^2; figured bass ⁴₃ from bass)
-  // German:   b̂6 – ^1 – b̂3 – ♯^4     (adds b̂3; figured bass ⁶₅ from bass)
+  // French:   b̂6 – ^1 – ^2 – ♯^4      (4 voices; figured bass ⁴₃ from bass)
+  // German:   b̂6 – ^1 – b̂3 – ♯^4     (4 voices; figured bass ⁶₅ from bass)
   //
-  // Spelling rule: b̂6 is ALWAYS spelled as a flat (e.g. Ab, never G#),
-  // and ♯^4 is ALWAYS spelled as a sharp (e.g. F#, never Gb). These are
-  // structural to the chord's identity and override the key's enharmonic preference.
-  // Other notes (^1, ^2, b̂3) follow the key's normal spelling.
+  // Spelling rule (strict): every member is spelled by its scale degree using
+  // spellByLetter(), NOT by the key's sharp/flat preference. So:
+  //   b̂6 = the 6th letter above the tonic, lowered  (E♭ major → C♭, never B)
+  //   ♯^4 = the 4th letter above the tonic, raised   (E♭ major → A,  never B♭♭)
+  //   ^1  = tonic letter,  ^2 = 2nd letter,  b̂3 = 3rd letter lowered
+  // This guarantees the augmented-6th interval is notated as an aug 6th
+  // (six letter names apart), and produces double accidentals in remote keys
+  // where they are genuinely correct.
+  //
+  // Essential-7th rule: the French ^2 and German b̂3 are NOT optional sevenths
+  // (unlike a V⁷). They are obligatory chord members, so they are flagged
+  // essential7 and rendered without the "(7th: …)" brackets used for V⁷ etc.
 
   const aug6 = [];
   {
@@ -973,10 +1004,10 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     const ton    = rootPc;
     const sharp4 = (rootPc + 6) % 12;
 
-    // b̂6 always flat, ♯^4 always sharp, tonic follows key spelling
-    const b6name    = nn(b6pc,    false);  // always flat spelling
-    const sharp4name = nn(sharp4, true);   // always sharp spelling
-    const tonName   = nn(ton, useSharp);
+    // All members spelled by scale degree (letter), per the strict rule above.
+    const b6name     = spellByLetter(rli + 5, b6pc);   // ♭6̂ — 6th letter, lowered
+    const sharp4name = spellByLetter(rli + 3, sharp4); // ♯4̂ — 4th letter, raised
+    const tonName    = spellByLetter(rli,     ton);    // 1̂
 
     const itNotes = [b6name, tonName, sharp4name];
     aug6.push({
@@ -988,29 +1019,31 @@ function getDiatonicChords(rootPc, mode, useSharp) {
       fbType: 'fixed', min: false, section: 'aug6',
     });
 
-    // French: ⁴₃ — four notes, b̂6 – ^1 – ^2 – ♯^4 (^2 in brackets)
+    // French: b̂6 – ^1 – ^2 – ♯^4. The ^2 is an essential chord tone.
     const fr2pc    = (rootPc + 2) % 12;
-    const frNote7  = nn(fr2pc, useSharp);
-    const frBase   = [b6name, tonName, sharp4name];
+    const fr2name  = spellByLetter(rli + 1, fr2pc);    // 2̂ — 2nd letter
+    const frNotes  = [b6name, tonName, fr2name, sharp4name];
     aug6.push({
       rn: 'Fr⁴₃', name: 'French augmented 6th',
-      triadNotes: frBase, note7: frNote7,
-      chordPcs: [b6pc, ton, fr2pc, sharp4], chordNotes: [...frBase, frNote7],
-      inversions: [{ inv:'', suf:'', rnDisplay:'Fr⁴₃', bassNote: frBase[0],
-        triadRotated: frBase, allNotes: [...frBase, frNote7], note7: frNote7, note7inBass: false }],
+      triadNotes: frNotes, note7: fr2name, essential7: true,
+      chordPcs: [b6pc, ton, fr2pc, sharp4], chordNotes: frNotes,
+      inversions: [{ inv:'', suf:'', rnDisplay:'Fr⁴₃', bassNote: frNotes[0],
+        triadRotated: frNotes, allNotes: frNotes, note7: fr2name,
+        note7inBass: false, essential7: true }],
       fbType: 'fixed', min: false, section: 'aug6',
     });
 
-    // German: ⁶₅ — four notes, b̂6 – ^1 – b̂3 – ♯^4 (b̂3 in brackets, always flat)
+    // German: b̂6 – ^1 – b̂3 – ♯^4. The b̂3 is an essential chord tone.
     const ger3pc   = (rootPc + 3) % 12;
-    const gerNote7 = nn(ger3pc, false);    // b̂3 also always flat spelling
-    const gerBase  = [b6name, tonName, sharp4name];
+    const ger3name = spellByLetter(rli + 2, ger3pc);   // ♭3̂ — 3rd letter, lowered
+    const gerNotes = [b6name, tonName, ger3name, sharp4name];
     aug6.push({
       rn: 'Ger⁶₅', name: 'German augmented 6th',
-      triadNotes: gerBase, note7: gerNote7,
-      chordPcs: [b6pc, ton, ger3pc, sharp4], chordNotes: [...gerBase, gerNote7],
-      inversions: [{ inv:'', suf:'', rnDisplay:'Ger⁶₅', bassNote: gerBase[0],
-        triadRotated: gerBase, allNotes: [...gerBase, gerNote7], note7: gerNote7, note7inBass: false }],
+      triadNotes: gerNotes, note7: ger3name, essential7: true,
+      chordPcs: [b6pc, ton, ger3pc, sharp4], chordNotes: gerNotes,
+      inversions: [{ inv:'', suf:'', rnDisplay:'Ger⁶₅', bassNote: gerNotes[0],
+        triadRotated: gerNotes, allNotes: gerNotes, note7: ger3name,
+        note7inBass: false, essential7: true }],
       fbType: 'fixed', min: false, section: 'aug6',
     });
   }
@@ -1083,20 +1116,22 @@ function getDiatonicChords(rootPc, mode, useSharp) {
   // ── Neapolitan Sixth ─────────────────────────────────────────────────────
   // The Neapolitan (N⁶ or ♭II⁶) is a major triad built on the flattened 2nd
   // degree, used almost exclusively in 1st inversion (hence the ⁶).
-  // Notes: ♭^2 – ♭^4 – ♭^6, with ♭^4 in the bass.
-  // All three notes are spelled as flats regardless of key.
+  // Notes: ♭^2 – ^4 – ♭^6 (a major triad whose root is ♭2̂), 1st inv = ^4 in bass.
+  // Like the augmented 6ths, each member has a fixed scale-degree identity and
+  // must be spelled by its letter (spellByLetter), NOT by the key's flat/sharp
+  // preference — e.g. E♭ major → F♭ – A♭ – C♭, never E – A♭ – B.
   // Functions as a pre-dominant chord (similar to iv or II).
 
   const neapolitan = [];
   {
-    const b2pc = (rootPc + 1) % 12;  // ♭^2
-    const b4pc = (rootPc + 5) % 12;  // ♭^4 (= ^4, same as diatonic in major)
-    const b6pc = (rootPc + 8) % 12;  // ♭^6
+    const b2pc = (rootPc + 1) % 12;  // ♭2̂
+    const b4pc = (rootPc + 5) % 12;  // 4̂ (the major 3rd of the ♭2̂ triad)
+    const b6pc = (rootPc + 8) % 12;  // ♭6̂ (the 5th of the ♭2̂ triad)
 
-    // Always spell with flats
-    const b2name = nn(b2pc, false);
-    const b4name = nn(b4pc, false);
-    const b6name = nn(b6pc, false);
+    // Spelled by scale degree: ♭2̂ = 2nd letter, 4̂ = 4th letter, ♭6̂ = 6th letter
+    const b2name = spellByLetter(rli + 1, b2pc);
+    const b4name = spellByLetter(rli + 3, b4pc);
+    const b6name = spellByLetter(rli + 5, b6pc);
 
     const nNotes = [b2name, b4name, b6name];
     // 1st inversion: ♭^4 in bass
@@ -1390,7 +1425,7 @@ function buildInvWrap(ch) {
     const nHtml = inv.allNotes.map(n => {
       if (n === inv.bassNote && !inv.note7inBass) return `<span class="bass-hl">${n}</span>`;
       if (inv.note7inBass && n === inv.note7) return `<span class="bass-hl">${n}</span>`;
-      if (inv.note7 && n === inv.note7 && !inv.note7inBass) return `<span class="note-seventh">(7th: ${n})</span>`;
+      if (inv.note7 && n === inv.note7 && !inv.note7inBass && !inv.essential7) return `<span class="note-seventh">(7th: ${n})</span>`;
       return n;
     }).join(' ');
     if (isFixed) {
@@ -1472,7 +1507,9 @@ function renderChordsFunctional(chords, grid) {
 
       const notesEl = document.createElement('div');
       notesEl.className = 'func-notes';
-      if (ch.note7) {
+      if (ch.note7 && ch.essential7) {
+        notesEl.textContent = ch.chordNotes.join('–');
+      } else if (ch.note7) {
         notesEl.innerHTML = ch.triadNotes.join('–') +
           ' <span class="func-note7">(' + ch.note7 + ')</span>';
       } else {
@@ -1551,9 +1588,11 @@ function renderChords() {
 
     const hdr = document.createElement('div');
     hdr.className = 'chord-header';
-    const notesSummary = ch.note7
-      ? ch.triadNotes.join(' – ') + ' <span class="note-seventh">(7th: ' + ch.note7 + ')</span>'
-      : ch.triadNotes.join(' – ');
+    const notesSummary = ch.note7 && ch.essential7
+      ? ch.chordNotes.join(' – ')
+      : ch.note7
+        ? ch.triadNotes.join(' – ') + ' <span class="note-seventh">(7th: ' + ch.note7 + ')</span>'
+        : ch.triadNotes.join(' – ');
     hdr.innerHTML = `
       <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${ch.rn}</span>
       <span class="chord-name">${ch.name}</span>
@@ -1780,7 +1819,7 @@ function identifyFromBass() {
         return `<span class="bass-hl">${n}</span>`;
       if (inv.note7inBass && n === inv.note7)
         return `<span class="bass-hl">${n}</span>`;
-      if (inv.note7 && n === inv.note7 && !inv.note7inBass)
+      if (inv.note7 && n === inv.note7 && !inv.note7inBass && !inv.essential7)
         return `<span class="note-seventh">(7th: ${n})</span>`;
       return n;
     }).join(' ');
@@ -1873,7 +1912,7 @@ function findChord() {
           return `<span class="bass-hl">${n}</span>`;
         if (inv.note7inBass && n === inv.note7)
           return `<span class="bass-hl">${n}</span>`;
-        if (inv.note7 && n === inv.note7 && !inv.note7inBass)
+        if (inv.note7 && n === inv.note7 && !inv.note7inBass && !inv.essential7)
           return `<span class="note-seventh">(7th: ${n})</span>`;
         return n;
       }).join(' ');
