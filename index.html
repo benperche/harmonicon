@@ -241,12 +241,17 @@ h1 {
   transition: background 0.12s, color 0.12s, transform 0.08s;
 }
 .play-btn:hover { background: var(--teal); color: #fff; border-color: var(--teal); }
+.play-btn:hover .pic { fill: #fff; stroke: #fff; }
 .play-btn:active { transform: scale(0.9); }
 .play-btn.playing { background: var(--teal); color: #fff; border-color: var(--teal); }
+.play-btn.playing .pic { fill: #fff; stroke: #fff; }
+/* Inline SVG icons — render identically everywhere (iOS would emoji-ize ▶). */
+.play-btn .pic { width: 0.62em; height: 0.62em; display: block; fill: var(--ink2); pointer-events: none; }
+.play-btn .pic-wave { width: 0.95em; height: 0.6em; fill: none; stroke: var(--ink2); stroke-width: 1.6; stroke-linecap: round; }
 .play-group { display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .td-play { width: 56px; text-align: center; }
 .td-play .play-group { justify-content: center; }
-.td-play .play-btn { width: 19px; height: 19px; font-size: 0.55rem; }
+.td-play .play-btn { width: 19px; height: 19px; font-size: 0.62rem; }
 
 /* Inversion table */
 .inv-wrap { display: none; padding: 9px 11px 11px; }
@@ -1441,6 +1446,12 @@ function audioCtx() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     _audioCtx = new AC();
+    // iOS routes Web Audio through the *ringer* by default, so it stays silent
+    // when the hardware mute switch is on. Declaring the session as 'playback'
+    // routes it through the media channel like a video — audible on silent.
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    } catch (e) { /* unsupported — harmless */ }
   }
   return _audioCtx;
 }
@@ -1557,9 +1568,11 @@ function playControlsHTML(noteNames, bassName, opt7, label) {
   const data = `data-notes="${noteNames.join(',')}" data-bass="${bassName}"` +
     (opt7 ? ` data-opt7="${opt7}"` : '') +
     (label ? ` data-label="${label}"` : '');
+  const strumIcon = '<svg class="pic" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1 L9 5 L2 9 Z"/></svg>';
+  const susIcon   = '<svg class="pic pic-wave" viewBox="0 0 16 10" aria-hidden="true"><path d="M1 5 Q4 0 7 5 T13 5"/></svg>';
   return `<span class="play-group">` +
-    `<button class="play-btn" title="Strum (arpeggiate)" aria-label="Strum chord" data-mode="strum" ${data}>▶</button>` +
-    `<button class="play-btn" title="Sustain (hold 2s)" aria-label="Sustain chord" data-mode="sustain" ${data}>∿</button>` +
+    `<button class="play-btn" title="Strum (arpeggiate)" aria-label="Strum chord" data-mode="strum" ${data}>${strumIcon}</button>` +
+    `<button class="play-btn" title="Sustain (hold 2s)" aria-label="Sustain chord" data-mode="sustain" ${data}>${susIcon}</button>` +
     `</span>`;
 }
 
@@ -1575,12 +1588,33 @@ document.addEventListener('click', e => {
   const opt7 = btn.dataset.opt7;
   if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
   const bass = btn.dataset.bass || names[0];
-  const voicing = chordVoicing(names, bass);
-  playMidis(voicing, btn.dataset.mode || 'strum');
-  highlightChord(voicing, names, btn.dataset.label || '');
+  playMidis(chordVoicing(names, bass), btn.dataset.mode || 'strum');
+  highlightChord(names, bass, btn.dataset.label || '');
   btn.classList.add('playing');
   setTimeout(() => btn.classList.remove('playing'), 320);
 }, true);
+
+// Highlight (without playing) the chord owned by an element that contains a
+// play button — used for hover preview and tap-to-expand. Reads the same data
+// attributes, so the Triad-only toggle is respected here too.
+function highlightFromHost(host) {
+  const btn = host && host.querySelector('.play-btn');
+  if (!btn) return;
+  let names = btn.dataset.notes.split(',').filter(Boolean);
+  if (!names.length) return;
+  const opt7 = btn.dataset.opt7;
+  if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
+  highlightChord(names, btn.dataset.bass || names[0], btn.dataset.label || '');
+}
+
+// Delegated hover preview on the chord grid: an inversion row highlights that
+// inversion; anywhere else in a card/tile highlights the chord (root position).
+document.addEventListener('mouseover', e => {
+  if (!e.target.closest) return;
+  if (!e.target.closest('#chord-grid')) return;
+  const host = e.target.closest('tbody tr') || e.target.closest('.chord-card, .func-tile');
+  if (host) highlightFromHost(host);
+});
 
 // ═══════════════════ PIANO KEYBOARD
 
@@ -1624,17 +1658,23 @@ function buildPiano() {
   piano.style.width = (whiteIdx * whiteW) + 'px';
 }
 
-function pianoKey(midi) { return document.querySelector(`.pkey[data-midi="${midi}"]`); }
-
-// Highlight a chord's voicing on the keyboard: chord tones in teal, the bass
-// (lowest note) in red. `names` are the spelled note names for the label.
-function highlightChord(midis, names, label) {
+// Highlight a chord on the keyboard by pitch class, so every octave of each
+// chord tone lights up (teal). The single lowest key matching the bass pitch
+// class is shown in red to mark the bass / inversion. `names` are the spelled
+// note names (for the caption); `bassName` selects the red key.
+function highlightChord(names, bassName, label) {
   clearPianoHL();
-  const bass = Math.min(...midis);
-  midis.forEach(m => {
-    const k = pianoKey(m);
-    if (k) k.classList.add(m === bass ? 'hl-bass' : 'hl');
+  const pcs    = new Set(names.map(noteNameToPc));
+  const bassPc = bassName != null ? noteNameToPc(bassName) : null;
+  let bassKey  = null;
+  document.querySelectorAll('.pkey').forEach(k => {
+    const m  = +k.dataset.midi;
+    const pc = ((m % 12) + 12) % 12;
+    if (!pcs.has(pc)) return;
+    k.classList.add('hl');
+    if (pc === bassPc && (!bassKey || m < +bassKey.dataset.midi)) bassKey = k;
   });
+  if (bassKey) { bassKey.classList.remove('hl'); bassKey.classList.add('hl-bass'); }
   const lab = document.getElementById('piano-label');
   if (lab) lab.innerHTML = (label ? `<b>${label}</b> &nbsp; ` : '') + (names ? names.join(' ') : '');
 }
@@ -1780,7 +1820,7 @@ function renderChordsFunctional(chords, grid) {
       // ── Header (compact, always visible) ──
       const tileHdr = document.createElement('div');
       tileHdr.className = 'func-tile-hdr';
-      tileHdr.addEventListener('click', () => tile.classList.toggle('open'));
+      tileHdr.addEventListener('click', () => { tile.classList.toggle('open'); highlightFromHost(tile); });
 
       const rnEl = document.createElement('div');
       rnEl.className = `func-rn${isMin?' minor-rn':''}${isSec?' secondary':''}${isSpec?' special':''}`;
@@ -1892,7 +1932,7 @@ function renderChords() {
       <span class="chord-notes-sum">${notesSummary}</span>
       ${playControlsHTML(ch.chordNotes, ch.chordNotes[0], (ch.note7 && !ch.essential7) ? ch.note7 : null, ch.rn)}
       <span class="expand-icon">▼</span>`;
-    hdr.addEventListener('click', () => card.classList.toggle('open'));
+    hdr.addEventListener('click', () => { card.classList.toggle('open'); highlightFromHost(card); });
 
     card.appendChild(hdr); card.appendChild(buildInvWrap(ch));
     grid.appendChild(card);

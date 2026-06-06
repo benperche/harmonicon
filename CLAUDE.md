@@ -87,7 +87,12 @@ Dependency-free Web Audio (section "AUDIO PLAYBACK" in `index.html`):
 - **`chordVoicing(noteNames, bassName)`** places the bass lowest (~C3) and stacks
   the rest above, so inversions sound inverted. `noteNameToPc` parses the spelled
   names (incl. 𝄪 𝄫) back to pitch classes.
-- **UI:** `playControlsHTML` emits the ▶ strum / ∿ sustain pair. A single
+- **iOS routing:** `audioCtx()` sets `navigator.audioSession.type = 'playback'`
+  so sound plays through the media channel (audible with the mute switch on),
+  not the ringer. Guarded in try/catch — it's a Safari-only API.
+- **UI:** `playControlsHTML` emits the strum / sustain pair as **inline SVG**
+  icons (a triangle and a sine wave), not text glyphs — iOS gives `▶` an emoji
+  presentation, so SVG keeps them identical across platforms. A single
   capture-phase delegated `click` listener handles every `.play-btn` and calls
   `stopPropagation` so playing doesn't toggle the card/tile open.
 - **Optional 7th:** the Playback panel toggles `S.play7th` (default `false` =
@@ -106,11 +111,16 @@ Fixed bottom bar (`#piano-bar`), section "PIANO KEYBOARD" in `index.html`:
   for every voicing): white keys flow, black keys absolutely positioned over the
   gaps. Each key carries `data-midi`. Called once in init.
 - Clicking a key plays that single note (`playMidis([m])`) and flashes it.
-- Playing any chord calls `highlightChord(voicing, names, label)` — the SAME
-  voicing that sounds — lighting the bass (lowest note) red and the rest teal,
-  with the Roman numeral + spelled notes shown in `#piano-label`. The play
-  button's `data-label` carries the RN. So "Triad only" / inversion choice is
-  reflected on the keyboard automatically.
+- `highlightChord(names, bassName, label)` lights up chord tones **by pitch
+  class**, so every octave of each tone is highlighted (teal); the single lowest
+  key matching `bassName` is red, marking the bass/inversion. RN + notes show in
+  `#piano-label`.
+- Triggers (all via `highlightFromHost`, which reads the host's `.play-btn`
+  data attributes so the Triad-only toggle is respected):
+  - **Playing** a chord (the click handler also calls `highlightChord`).
+  - **Hovering** a card/tile or an inversion row — a delegated `mouseover` on
+    `#chord-grid`; an inversion row highlights that inversion's bass.
+  - **Tapping to expand** a card/tile (the touch fallback for hover).
 - `togglePiano()` collapses the bar (and shrinks `body` padding via
   `body.piano-collapsed`). On narrow screens `#piano-scroll` scrolls horizontally.
 
