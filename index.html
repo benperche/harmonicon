@@ -520,6 +520,8 @@ body.piano-collapsed { padding-bottom: 46px; }
 .pkey.flash.black { background: var(--gold); }
 .pkey.hl.white  { background: #8fc0b8; }
 .pkey.hl.black  { background: #2f8077; }
+.pkey.hl-7th.white { background: #8aaad8; }   /* the 7th — a distinct blue */
+.pkey.hl-7th.black { background: #3f63ad; }
 .pkey.hl-bass.white { background: var(--red-light); }
 .pkey.hl-bass.black { background: var(--red); }
 @media (max-width: 560px) {
@@ -570,8 +572,8 @@ body.piano-collapsed { padding-bottom: 46px; }
       <div class="panel">
         <div class="panel-title">Playback</div>
         <div class="mode-row">
-          <button class="mode-btn" id="btn-play-7th" onclick="setPlay7th(true)">With 7th</button>
           <button class="mode-btn active" id="btn-play-triad" onclick="setPlay7th(false)">Triad only</button>
+          <button class="mode-btn" id="btn-play-7th" onclick="setPlay7th(true)">With 7th</button>
         </div>
       </div>
     </div>
@@ -1589,7 +1591,7 @@ document.addEventListener('click', e => {
   if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
   const bass = btn.dataset.bass || names[0];
   playMidis(chordVoicing(names, bass), btn.dataset.mode || 'strum');
-  highlightChord(names, bass, btn.dataset.label || '');
+  highlightChord(names, bass, btn.dataset.label || '', btn.dataset.opt7 || null);
   btn.classList.add('playing');
   setTimeout(() => btn.classList.remove('playing'), 320);
 }, true);
@@ -1604,7 +1606,7 @@ function highlightFromHost(host) {
   if (!names.length) return;
   const opt7 = btn.dataset.opt7;
   if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
-  highlightChord(names, btn.dataset.bass || names[0], btn.dataset.label || '');
+  highlightChord(names, btn.dataset.bass || names[0], btn.dataset.label || '', opt7 || null);
 }
 
 // Delegated hover preview on the chord grid: an inversion row highlights that
@@ -1660,27 +1662,30 @@ function buildPiano() {
 
 // Highlight a chord on the keyboard by pitch class, so every octave of each
 // chord tone lights up (teal). The single lowest key matching the bass pitch
-// class is shown in red to mark the bass / inversion. `names` are the spelled
-// note names (for the caption); `bassName` selects the red key.
-function highlightChord(names, bassName, label) {
+// class is shown in red to mark the bass / inversion; the 7th (if present and
+// sounding) is shown in blue. `names` are the spelled note names (for the
+// caption); `bassName` selects the red key; `seventhName` selects the blue key.
+function highlightChord(names, bassName, label, seventhName) {
   clearPianoHL();
   const pcs    = new Set(names.map(noteNameToPc));
   const bassPc = bassName != null ? noteNameToPc(bassName) : null;
+  const sevPc  = (seventhName && pcs.has(noteNameToPc(seventhName))) ? noteNameToPc(seventhName) : null;
   let bassKey  = null;
   document.querySelectorAll('.pkey').forEach(k => {
     const m  = +k.dataset.midi;
     const pc = ((m % 12) + 12) % 12;
     if (!pcs.has(pc)) return;
-    k.classList.add('hl');
+    k.classList.add(pc === sevPc ? 'hl-7th' : 'hl');
     if (pc === bassPc && (!bassKey || m < +bassKey.dataset.midi)) bassKey = k;
   });
-  if (bassKey) { bassKey.classList.remove('hl'); bassKey.classList.add('hl-bass'); }
+  if (bassKey) { bassKey.classList.remove('hl', 'hl-7th'); bassKey.classList.add('hl-bass'); }
   const lab = document.getElementById('piano-label');
   if (lab) lab.innerHTML = (label ? `<b>${label}</b> &nbsp; ` : '') + (names ? names.join(' ') : '');
 }
 
 function clearPianoHL() {
-  document.querySelectorAll('.pkey.hl, .pkey.hl-bass').forEach(k => k.classList.remove('hl', 'hl-bass'));
+  document.querySelectorAll('.pkey.hl, .pkey.hl-7th, .pkey.hl-bass')
+    .forEach(k => k.classList.remove('hl', 'hl-7th', 'hl-bass'));
 }
 
 function togglePiano() {
