@@ -111,11 +111,15 @@ Fixed bottom bar (`#piano-bar`), section "PIANO KEYBOARD" in `index.html`:
   for every voicing): white keys flow, black keys absolutely positioned over the
   gaps. Each key carries `data-midi`. Called once in init.
 - Clicking a key plays that single note (`playMidis([m])`) and flashes it.
-- `highlightChord(names, bassName, label, seventhName)` lights up chord tones
-  **by pitch class**, so every octave of each tone is highlighted (teal); the
-  single lowest key matching `bassName` is red (bass/inversion), and the 7th
-  (`seventhName` = the button's `data-opt7`, only when it's actually sounding) is
-  blue. RN + notes show in `#piano-label`.
+- `highlightChord(names, bassName, label, roles)` colour-codes keys by
+  scale-degree **role** (`roles = {root, fifth, seventh}` note names, from the
+  button's `data-root`/`data-fifth`/`data-opt7`): root = red, 3rd/other = teal,
+  5th = teal-blue, 7th = blue. Each role lights in every octave, but nothing
+  **below the bass** (`bassName`, the floor) is shown — so a root-position chord
+  starts at its root and an inversion at its bass. `chordRoles(ch)` supplies the
+  root/5th (aug6 has no tonal root, so it anchors on its lowest note, no 5th).
+  The `#piano-legend` swatches mirror these four colours. RN + notes show in
+  `#piano-label`.
 - Triggers (all via `highlightFromHost`, which reads the host's `.play-btn`
   data attributes so the Triad-only toggle is respected):
   - **Playing** a chord (the click handler also calls `highlightChord`).

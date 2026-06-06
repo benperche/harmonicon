@@ -486,9 +486,18 @@ body.piano-collapsed { padding-bottom: 46px; }
   display: flex; align-items: center; gap: 10px;
   max-width: 760px; margin: 0 auto 7px; height: 18px;
 }
-#piano-title { font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink3); }
-#piano-label { font-size: 0.8rem; color: var(--ink2); flex: 1; }
+#piano-title { font-size: 0.64rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink3); flex: none; }
+#piano-label { font-size: 0.8rem; color: var(--ink2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #piano-label b { color: var(--red); font-family: 'IM Fell English', serif; font-size: 0.9rem; }
+/* Colour-coded legend matching the key highlights */
+#piano-legend { display: flex; gap: 9px; flex: none; }
+.lg { display: inline-flex; align-items: center; gap: 4px; font-size: 0.6rem; color: var(--ink2); white-space: nowrap; }
+.lg::before { content: ''; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.18); }
+.lg-root::before { background: var(--red-light); }
+.lg-3rd::before  { background: #8fc0b8; }
+.lg-5th::before  { background: #8ab8cc; }
+.lg-7th::before  { background: #8aaad8; }
+@media (max-width: 620px) { #piano-title, .lg-3rd { display: none; } }
 #piano-toggle {
   flex: none; cursor: pointer; border: 1px solid var(--border);
   background: var(--bg2); color: var(--ink2); border-radius: 5px;
@@ -518,12 +527,14 @@ body.piano-collapsed { padding-bottom: 46px; }
 }
 .pkey.flash.white { background: var(--gold); }
 .pkey.flash.black { background: var(--gold); }
-.pkey.hl.white  { background: #8fc0b8; }
+.pkey.hl.white  { background: #8fc0b8; }       /* 3rd / other tones — teal */
 .pkey.hl.black  { background: #2f8077; }
-.pkey.hl-7th.white { background: #8aaad8; }   /* the 7th — a distinct blue */
+.pkey.hl-5th.white { background: #8ab8cc; }    /* 5th — subtly bluer than the 3rd */
+.pkey.hl-5th.black { background: #34789a; }
+.pkey.hl-7th.white { background: #8aaad8; }    /* 7th — clearly blue */
 .pkey.hl-7th.black { background: #3f63ad; }
-.pkey.hl-bass.white { background: var(--red-light); }
-.pkey.hl-bass.black { background: var(--red); }
+.pkey.hl-root.white { background: var(--red-light); }  /* root */
+.pkey.hl-root.black { background: var(--red); }
 @media (max-width: 560px) {
   body { padding-bottom: 150px; }
   #piano { height: 96px; }
@@ -672,6 +683,12 @@ body.piano-collapsed { padding-bottom: 46px; }
   <div id="piano-bar-head">
     <span id="piano-title">Piano</span>
     <span id="piano-label">Click a key to play, or play a chord to see it here</span>
+    <span id="piano-legend">
+      <span class="lg lg-root">Root</span>
+      <span class="lg lg-3rd">3rd</span>
+      <span class="lg lg-5th">5th</span>
+      <span class="lg lg-7th">7th</span>
+    </span>
     <button id="piano-toggle" title="Hide/show keyboard" onclick="togglePiano()">▾</button>
   </div>
   <div id="piano-scroll"><div id="piano"></div></div>
@@ -712,7 +729,7 @@ body.piano-collapsed { padding-bottom: 46px; }
 //   MINOR: new chords, tabs, or notable improvements
 //   PATCH: bug fixes, spelling corrections, small UI tweaks
 // ═══════════════════════════════════════════════════════════════════
-const VERSION = '1.4';
+const VERSION = '1.5';
 // ═══════════════════ PITCH CLASSES & SPELLINGS
 
 const SH = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
@@ -1565,11 +1582,14 @@ function playMidis(midis, mode = 'strum') {
 // names (voicing order), data-bass = the note to place in the bass, data-mode =
 // which playback style the button triggers, data-opt7 = the optional 7th to drop
 // when "Triad only" is selected (omitted when there is no removable 7th),
-// data-label = the chord's Roman numeral, shown above the piano on play.
-function playControlsHTML(noteNames, bassName, opt7, label) {
+// data-label = the chord's Roman numeral (piano caption), data-root/data-fifth =
+// the chord's root/5th note names, used to colour-code the keyboard highlight.
+function playControlsHTML(noteNames, bassName, opt7, label, root, fifth) {
   const data = `data-notes="${noteNames.join(',')}" data-bass="${bassName}"` +
     (opt7 ? ` data-opt7="${opt7}"` : '') +
-    (label ? ` data-label="${label}"` : '');
+    (label ? ` data-label="${label}"` : '') +
+    (root ? ` data-root="${root}"` : '') +
+    (fifth ? ` data-fifth="${fifth}"` : '');
   const strumIcon = '<svg class="pic" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1 L9 5 L2 9 Z"/></svg>';
   const susIcon   = '<svg class="pic pic-wave" viewBox="0 0 16 10" aria-hidden="true"><path d="M1 5 Q4 0 7 5 T13 5"/></svg>';
   return `<span class="play-group">` +
@@ -1591,7 +1611,8 @@ document.addEventListener('click', e => {
   if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
   const bass = btn.dataset.bass || names[0];
   playMidis(chordVoicing(names, bass), btn.dataset.mode || 'strum');
-  highlightChord(names, bass, btn.dataset.label || '', btn.dataset.opt7 || null);
+  highlightChord(names, bass, btn.dataset.label || '',
+    { root: btn.dataset.root, fifth: btn.dataset.fifth, seventh: btn.dataset.opt7 });
   btn.classList.add('playing');
   setTimeout(() => btn.classList.remove('playing'), 320);
 }, true);
@@ -1606,7 +1627,8 @@ function highlightFromHost(host) {
   if (!names.length) return;
   const opt7 = btn.dataset.opt7;
   if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
-  highlightChord(names, btn.dataset.bass || names[0], btn.dataset.label || '', opt7 || null);
+  highlightChord(names, btn.dataset.bass || names[0], btn.dataset.label || '',
+    { root: btn.dataset.root, fifth: btn.dataset.fifth, seventh: opt7 });
 }
 
 // Delegated hover preview on the chord grid: an inversion row highlights that
@@ -1660,32 +1682,46 @@ function buildPiano() {
   piano.style.width = (whiteIdx * whiteW) + 'px';
 }
 
-// Highlight a chord on the keyboard by pitch class, so every octave of each
-// chord tone lights up (teal). The single lowest key matching the bass pitch
-// class is shown in red to mark the bass / inversion; the 7th (if present and
-// sounding) is shown in blue. `names` are the spelled note names (for the
-// caption); `bassName` selects the red key; `seventhName` selects the blue key.
-function highlightChord(names, bassName, label, seventhName) {
+// Highlight a chord on the keyboard, colour-coded by scale-degree role:
+// root = red, 3rd/other = teal, 5th = teal-blue, 7th = blue. Each role lights
+// up in every octave, but nothing below the bass (lowest sounding note) is
+// shown — so a root-position chord starts at its root, an inversion at its bass.
+// `names` = spelled note names (caption); `bassName` = the floor; `roles` =
+// { root, fifth, seventh } note names selecting the special colours.
+function highlightChord(names, bassName, label, roles) {
   clearPianoHL();
-  const pcs    = new Set(names.map(noteNameToPc));
-  const bassPc = bassName != null ? noteNameToPc(bassName) : null;
-  const sevPc  = (seventhName && pcs.has(noteNameToPc(seventhName))) ? noteNameToPc(seventhName) : null;
-  let bassKey  = null;
+  roles = roles || {};
+  const pcs     = new Set(names.map(noteNameToPc));
+  const bassPc  = bassName    != null ? noteNameToPc(bassName)    : null;
+  const rootPc  = roles.root  != null ? noteNameToPc(roles.root)  : null;
+  const fifthPc = roles.fifth != null ? noteNameToPc(roles.fifth) : null;
+  const sevPc   = (roles.seventh && pcs.has(noteNameToPc(roles.seventh))) ? noteNameToPc(roles.seventh) : null;
+
+  // Floor: the lowest key matching the bass pitch class — nothing below it lights.
+  let floor = Infinity;
+  document.querySelectorAll('.pkey').forEach(k => {
+    const m = +k.dataset.midi;
+    if (((m % 12) + 12) % 12 === bassPc) floor = Math.min(floor, m);
+  });
+  if (!isFinite(floor)) floor = -Infinity;
+
   document.querySelectorAll('.pkey').forEach(k => {
     const m  = +k.dataset.midi;
     const pc = ((m % 12) + 12) % 12;
-    if (!pcs.has(pc)) return;
-    k.classList.add(pc === sevPc ? 'hl-7th' : 'hl');
-    if (pc === bassPc && (!bassKey || m < +bassKey.dataset.midi)) bassKey = k;
+    if (!pcs.has(pc) || m < floor) return;
+    let cls = 'hl';
+    if      (pc === rootPc)  cls = 'hl-root';
+    else if (pc === sevPc)   cls = 'hl-7th';
+    else if (pc === fifthPc) cls = 'hl-5th';
+    k.classList.add(cls);
   });
-  if (bassKey) { bassKey.classList.remove('hl', 'hl-7th'); bassKey.classList.add('hl-bass'); }
   const lab = document.getElementById('piano-label');
   if (lab) lab.innerHTML = (label ? `<b>${label}</b> &nbsp; ` : '') + (names ? names.join(' ') : '');
 }
 
 function clearPianoHL() {
-  document.querySelectorAll('.pkey.hl, .pkey.hl-7th, .pkey.hl-bass')
-    .forEach(k => k.classList.remove('hl', 'hl-7th', 'hl-bass'));
+  document.querySelectorAll('.pkey.hl, .pkey.hl-5th, .pkey.hl-7th, .pkey.hl-root')
+    .forEach(k => k.classList.remove('hl', 'hl-5th', 'hl-7th', 'hl-root'));
 }
 
 function togglePiano() {
@@ -1718,6 +1754,14 @@ function renderNoteList(inv) {
       return `<span class="note-seventh">(7th: ${n})</span>`;
     return n;
   }).join(' ');
+}
+
+// The chord's root and 5th note names, for role-colouring on the piano.
+// Tertian chords expose them as triadNotes[0]/[2]; aug6 has no tonal root, so
+// we anchor on its lowest displayed note and skip the 5th.
+function chordRoles(ch) {
+  if (ch.section === 'aug6') return { root: ch.chordNotes[0], fifth: null };
+  return { root: ch.triadNotes[0], fifth: ch.triadNotes[2] || null };
 }
 
 function getChordFunction(ch) {
@@ -1755,12 +1799,13 @@ function buildInvWrap(ch) {
     ? `<thead><tr><th>Bass</th><th>Chord name</th><th>Chord tones</th><th></th></tr></thead>`
     : `<thead><tr><th>Bass</th><th>Roman numeral</th><th>Inversion</th><th>Chord tones</th><th></th></tr></thead>`;
 
+  const roles = chordRoles(ch);
   const tbody = document.createElement('tbody');
   ch.inversions.forEach(inv => {
     const tr = document.createElement('tr');
     const nHtml = renderNoteList(inv);
     const invOpt7 = (inv.note7 && !inv.essential7 && !inv.note7inBass) ? inv.note7 : null;
-    const playTd = `<td class="td-play">${playControlsHTML(inv.allNotes, inv.bassNote, invOpt7, inv.rnDisplay)}</td>`;
+    const playTd = `<td class="td-play">${playControlsHTML(inv.allNotes, inv.bassNote, invOpt7, inv.rnDisplay, roles.root, roles.fifth)}</td>`;
     if (isFixed) {
       tr.innerHTML = `
         <td class="td-bass">${inv.bassNote}</td>
@@ -1852,9 +1897,10 @@ function renderChordsFunctional(chords, grid) {
       midEl.appendChild(nameEl);
       midEl.appendChild(notesEl);
 
+      const tRoles = chordRoles(ch);
       const playEl = document.createElement('span');
       playEl.innerHTML = playControlsHTML(ch.chordNotes, ch.chordNotes[0],
-        (ch.note7 && !ch.essential7) ? ch.note7 : null, ch.rn);
+        (ch.note7 && !ch.essential7) ? ch.note7 : null, ch.rn, tRoles.root, tRoles.fifth);
 
       const expIcon = document.createElement('span');
       expIcon.className = 'func-expand-icon';
@@ -1935,7 +1981,7 @@ function renderChords() {
       <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${ch.rn}</span>
       <span class="chord-name">${ch.name}</span>
       <span class="chord-notes-sum">${notesSummary}</span>
-      ${playControlsHTML(ch.chordNotes, ch.chordNotes[0], (ch.note7 && !ch.essential7) ? ch.note7 : null, ch.rn)}
+      ${playControlsHTML(ch.chordNotes, ch.chordNotes[0], (ch.note7 && !ch.essential7) ? ch.note7 : null, ch.rn, chordRoles(ch).root, chordRoles(ch).fifth)}
       <span class="expand-icon">▼</span>`;
     hdr.addEventListener('click', () => { card.classList.toggle('open'); highlightFromHost(card); });
 
