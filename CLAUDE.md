@@ -15,8 +15,9 @@ open the file or serve the folder (`python3 -m http.server`).
 - **JS spelling helpers** (~line 615+): `SH`/`FL` tables, `nn(pc, sharp)`,
   `buildDiatonicSpelling`, `spellByLetter`, `LETTERS`/`LETTER_PC`.
 - **`getDiatonicChords(rootPc, mode, useSharp)`** (~line 819): the core builder.
-  Returns an array of chord objects. Sub-sections inside it: diatonic, secondary
-  dominants, **augmented 6ths**, common-tone, Neapolitan, borrowed.
+  Returns an array of chord objects. Sub-sections inside it: diatonic,
+  **cadential 6/4**, secondary dominants, **augmented 6ths**, common-tone,
+  Neapolitan, borrowed.
 - **Render functions** (~line 1400+): `renderChords` (card view),
   `renderChordsFunctional` (grouped-by-function tiles), plus bass-lookup renderers.
   These iterate `ch.inversions[].allNotes` to print chord tones.
@@ -103,6 +104,15 @@ Dependency-free Web Audio (section "AUDIO PLAYBACK" in `index.html`):
   e.g. a ⁴₂ inversion). The displayed `(7th: …)` bracket is unchanged; only
   playback responds, so no re-render is needed on toggle.
 
+## Cadential 6/4
+
+The `cad64` section is a single fixed chord: the tonic triad in second inversion
+over 5̂ (dominant in the bass), labelled **V⁶₄** (literally I⁶₄, but it prolongs
+the dominant — `getChordFunction` returns `'dominant'`). `triadNotes` is kept in
+root position (`[1̂, 3̂, 5̂]`) so `chordRoles` colours the piano correctly (root =
+1̂, 5th = 5̂); `chordNotes`/`allNotes` are bass-first (`[5̂, 1̂, 3̂]`) for the
+voicing and the underlined bass.
+
 ## Piano keyboard
 
 Fixed bottom bar (`#piano-bar`), section "PIANO KEYBOARD" in `index.html`:
@@ -128,6 +138,9 @@ Fixed bottom bar (`#piano-bar`), section "PIANO KEYBOARD" in `index.html`:
   - **Tapping to expand** a card/tile (the touch fallback for hover).
 - `togglePiano()` collapses the bar (and shrinks `body` padding via
   `body.piano-collapsed`). On narrow screens `#piano-scroll` scrolls horizontally.
+- iOS long-press selection is suppressed with `-webkit-user-select: none` +
+  `-webkit-touch-callout: none` on `#piano-bar *` (the unprefixed `user-select`
+  alone doesn't stop Safari's selection/magnifier).
 
 ## Verifying changes
 

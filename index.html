@@ -481,6 +481,14 @@ body.piano-collapsed { padding-bottom: 46px; }
   box-shadow: 0 -3px 14px rgba(0,0,0,0.10);
   padding: 7px 12px 10px;
 }
+/* Stop iOS long-press from selecting/“magnifying” the keyboard. Safari needs
+   the -webkit- prefixes; the unprefixed user-select alone doesn't catch it. */
+#piano-bar, #piano-bar * {
+  -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#piano-bar .pkey { touch-action: manipulation; }
 #piano-bar.collapsed { padding-bottom: 7px; }
 #piano-bar-head {
   display: flex; align-items: center; gap: 10px;
@@ -1073,6 +1081,27 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     });
   }
 
+  // ── Cadential 6/4 ────────────────────────────────────────────────────────
+  // The tonic triad in second inversion over scale-degree 5̂ (the dominant in
+  // the bass): a 6th and a 4th above the bass resolve down (6→5, 4→3) into V.
+  // It prolongs the dominant, so it's labelled V⁶₄ — though literally it is I⁶₄.
+  // Works the same in major and minor (the 3rd just follows the mode).
+  const cad64 = [];
+  {
+    const dom = spell(pcs[4]);   // 5̂ — in the bass
+    const ton = spell(pcs[0]);   // 1̂ — a 4th above the bass
+    const med = spell(pcs[2]);   // 3̂ — a 6th above the bass
+    const notes = [dom, ton, med];                 // bass-first display order
+    cad64.push({
+      rn: 'V⁶₄', name: 'Cadential 6/4 (I⁶₄ over the dominant → V)',
+      triadNotes: [ton, med, dom], note7: null,    // root-position triad ⇒ piano root/5th roles
+      chordPcs: [pcs[4], pcs[0], pcs[2]], chordNotes: notes,
+      inversions: [{ inv: 'Resolves to V', suf: '', rnDisplay: 'V⁶₄', bassNote: dom,
+        triadRotated: notes, allNotes: notes, note7: null, note7inBass: false }],
+      fbType: 'fixed', min: false, section: 'cad64',
+    });
+  }
+
   // ── Augmented Sixth Chords ───────────────────────────────────────────────
   // All three types have b̂6 in the bass and ♯^4 as the top note. The interval
   // between them is an augmented 6th, which is the defining feature — so both
@@ -1290,7 +1319,7 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     });
   }
 
-  return [...diatonic, ...secondary, ...aug6, ...neapolitan, ...borrowed, ...ct];
+  return [...diatonic, ...cad64, ...secondary, ...aug6, ...neapolitan, ...borrowed, ...ct];
 }
 
 // ═══════════════════ STATE
@@ -1766,6 +1795,7 @@ function chordRoles(ch) {
 
 function getChordFunction(ch) {
   const { rn, section } = ch;
+  if (section === 'cad64') return 'dominant';   // cadential 6/4 prolongs the dominant
   if (section === 'aug6' || section === 'neapolitan') return 'predominant';
   if (section === 'ct') return 'other';
   if (section === 'borrowed') {
@@ -1955,6 +1985,7 @@ function renderChords() {
       lbl.className = 'chord-section-label';
       lbl.textContent = {
         diatonic:    'Diatonic Chords',
+        cad64:       'Cadential 6/4',
         secondary:   'Secondary Dominants',
         aug6:        'Augmented Sixth Chords',
         neapolitan:  'Neapolitan',
@@ -2174,6 +2205,7 @@ function identifyFromBass() {
   const sections = ['diatonic', 'secondary', 'aug6', 'ct'];
   const sectionLabels = {
     diatonic:   'Diatonic Chords',
+    cad64:      'Cadential 6/4',
     secondary:  'Secondary Dominants',
     aug6:       'Augmented Sixth Chords',
     neapolitan: 'Neapolitan',
