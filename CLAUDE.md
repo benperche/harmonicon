@@ -16,8 +16,11 @@ open the file or serve the folder (`python3 -m http.server`).
   `buildDiatonicSpelling`, `spellByLetter`, `LETTERS`/`LETTER_PC`.
 - **`getDiatonicChords(rootPc, mode, useSharp)`** (~line 819): the core builder.
   Returns an array of chord objects. Sub-sections inside it: diatonic,
-  **cadential 6/4**, secondary dominants, **augmented 6ths**, common-tone,
-  Neapolitan, borrowed.
+  **cadential 6/4**, secondary dominants, **secondary leading-tone** (vii°⁷/x,
+  a dim7 on the semitone below the target root, spelled with `spellStack` on
+  the letter below the target letter), **augmented 6ths**, common-tone,
+  Neapolitan, borrowed. `rnWithSuffix` collapses the double ° when a dim rn
+  (vii°, vii°/x) meets a °-prefixed figured-bass suffix (vii°⁷, not vii°°⁷).
 - **Render functions** (~line 1400+): `renderChords` (card view),
   `renderChordsFunctional` (grouped-by-function tiles), plus bass-lookup renderers.
   These iterate `ch.inversions[].allNotes` to print chord tones.
@@ -141,6 +144,27 @@ Fixed bottom bar (`#piano-bar`), section "PIANO KEYBOARD" in `index.html`:
 - iOS long-press selection is suppressed with `-webkit-user-select: none` +
   `-webkit-touch-callout: none` on `#piano-bar *` (the unprefixed `user-select`
   alone doesn't stop Safari's selection/magnifier).
+
+## App shell (persistence, tabs, PWA, a11y)
+
+- **Key persistence:** `saveKeyState()` (called from `renderChords`) stores
+  `{keyIndex, mode, enhKey, ts}` in localStorage under `harmonicon-key`;
+  `restoreKeyState()` discards it after 24h (TTL check on read — localStorage
+  has no native expiry). Deliberate: remembered for a day, not forever.
+- **Tab deep links:** `#lookup` / `#bass` / `#modes` open that tab on load;
+  `showTab` mirrors the current tab into the hash via `history.replaceState`
+  (`chords` = clean URL).
+- **PWA:** `sw.js` — network-first for the document, cache-first for static
+  assets, same-origin only. Registered at the end of init. Bump its `CACHE`
+  name when changing cached-asset strategy.
+- **COF a11y:** `makeCofFocusable` gives every circle-of-fifths segment
+  `tabindex/role/aria-label` + Enter/Space activation; focus ring styled via
+  `.cof-hit:focus-visible path`.
+- **Orienting progression:** `playProgression()` (button under the key
+  display) plays I–IV–V–I / i–iv–V–i, one chord per ~0.9s, highlighting each
+  on the piano; the final chord becomes `_lastPlayedHL`.
+- **Sticky piano highlight:** `_lastPlayedHL` tracks the last *played* chord;
+  `mouseleave` on `#chord-grid` reverts the hover preview to it.
 
 ## Verifying changes
 

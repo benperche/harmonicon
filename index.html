@@ -127,8 +127,20 @@ h1 {
 }
 
 /* ── Circle of Fifths ────────── */
-.cof-hit { cursor: pointer; }
+.cadence-btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  margin: 8px auto 0; padding: 5px 14px;
+  font-family: 'Crimson Pro', serif; font-size: 0.72rem; letter-spacing: 0.1em;
+  color: var(--ink2); background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.cadence-btn:hover { background: var(--teal); color: #fff; border-color: var(--teal); }
+.cadence-btn .pic { width: 0.6em; height: 0.6em; }
+
+.cof-hit { cursor: pointer; outline: none; }
 .cof-hit:hover path { filter: brightness(0.93); }
+.cof-hit:focus-visible path { stroke: var(--red); stroke-width: 2.5; }
 
 .mode-row { display: flex; gap: 6px; margin-top: 10px; }
 .mode-btn {
@@ -579,6 +591,11 @@ body.piano-collapsed { padding-bottom: 46px; }
           <button class="mode-btn" id="btn-minor" onclick="setMode('minor')">Minor</button>
         </div>
         <div class="key-display" id="key-display">C major<small>Key of C</small></div>
+        <button class="cadence-btn" id="btn-cadence" onclick="playProgression()"
+                title="Hear the key: tonic – subdominant – dominant – tonic">
+          <svg class="pic" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1 L9 5 L2 9 Z" fill="currentColor"/></svg>
+          <span id="cadence-label">I – IV – V – I</span>
+        </button>
         <!-- KEY SIG DISABLED: <svg id="keysig-svg" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:10px auto 0"></svg> -->
       </div>
       <div class="panel">
@@ -888,8 +905,12 @@ const FB = {
 function rnWithSuffix(rn, suf) {
   if (!suf) return rn;
   const slash = rn.indexOf('/');
-  if (slash === -1) return rn + suf;
-  return rn.slice(0, slash) + suf + rn.slice(slash);
+  let head = slash === -1 ? rn : rn.slice(0, slash);
+  const tail = slash === -1 ? '' : rn.slice(slash);
+  // A dim-chord rn already ends in ° and the dim7 suffixes start with ° —
+  // collapse the double ° (vii° + °⁷ → vii°⁷, not vii°°⁷).
+  if (head.endsWith('°') && suf.startsWith('°')) head = head.slice(0, -1);
+  return head + suf + tail;
 }
 
 function inversions(rn, fbType, notes3, note7) {
@@ -1041,8 +1062,28 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     };
   }
 
-  const diatonic  = [];
-  const secondary = [];
+  // Secondary leading-tone chord: a fully diminished 7th on the leading tone
+  // of the tonicised degree (a semitone below its root), resolving up into it.
+  // `deg` is the target's scale-degree index (0=1̂ … 6=7̂), so the LT root sits
+  // on the letter below the target letter — spelled by scale degree with
+  // spellStack, which yields the correct accidentals in any key.
+  function secondaryLTChord(of, deg) {
+    const ltRoot  = ((pcs[deg] + 11) % 12 + 12) % 12;
+    const dimPcs  = [0,3,6,9].map(iv => (ltRoot + iv) % 12);
+    const dimNotes = spellStack(rli + deg - 1, dimPcs);
+    return {
+      rn: `vii°/${of}`, name: `Leading-tone dim. 7th of ${of}`,
+      rootP: ltRoot,
+      chordPcs: dimPcs, triadNotes: dimNotes.slice(0,3), note7: dimNotes[3],
+      chordNotes: dimNotes,
+      inversions: inversions(`vii°/${of}`, 'dim7', dimNotes.slice(0,3), dimNotes[3]),
+      fbType: 'dim7', min: true, section: 'secondaryLT',
+    };
+  }
+
+  const diatonic    = [];
+  const secondary   = [];
+  const secondaryLT = [];
 
   if (mode === 'major') {
     diatonic.push(
@@ -1059,6 +1100,7 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     [{of:'ii', d:1},{of:'iii',d:2},{of:'IV',d:3},{of:'V',d:4},{of:'vi',d:5}].forEach(s => {
       const domRoot = ((pcs[s.d] + 7) % 12 + 12) % 12;
       secondary.push(secondaryChord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot));
+      secondaryLT.push(secondaryLTChord(s.of, s.d));
     });
 
   } else {
@@ -1078,6 +1120,7 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     [{of:'III',d:2},{of:'iv',d:3},{of:'V',d:4},{of:'VI',d:5},{of:'VII',d:6}].forEach(s => {
       const domRoot = ((pcs[s.d] + 7) % 12 + 12) % 12;
       secondary.push(secondaryChord(`V/${s.of}`, `Secondary dom. of ${s.of}`, domRoot));
+      secondaryLT.push(secondaryLTChord(s.of, s.d));
     });
   }
 
@@ -1319,7 +1362,7 @@ function getDiatonicChords(rootPc, mode, useSharp) {
     });
   }
 
-  return [...diatonic, ...cad64, ...secondary, ...aug6, ...neapolitan, ...borrowed, ...ct];
+  return [...diatonic, ...cad64, ...secondary, ...secondaryLT, ...aug6, ...neapolitan, ...borrowed, ...ct];
 }
 
 // ═══════════════════ STATE
@@ -1381,6 +1424,19 @@ const ENH_MINOR = {
   6: { name:'E♭', pc:3, sharps:false },
 };
 
+// Make a circle-of-fifths SVG segment keyboard-reachable: focusable, announced
+// as a button, and activatable with Enter/Space (which forwards to its click
+// handler). SVG elements aren't in the tab order by default.
+function makeCofFocusable(g, label, isSelected) {
+  g.setAttribute('tabindex', '0');
+  g.setAttribute('role', 'button');
+  g.setAttribute('aria-label', label);
+  if (isSelected) g.setAttribute('aria-pressed', 'true');
+  g.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); g.dispatchEvent(new MouseEvent('click')); }
+  });
+}
+
 function drawCOF(svgId, selIdx, mode, onClickFn) {
   const svg = document.getElementById(svgId);
   svg.innerHTML = '';
@@ -1420,6 +1476,7 @@ function drawCOF(svgId, selIdx, mode, onClickFn) {
 
     g.appendChild(p); g.appendChild(t);
     g.addEventListener('click', () => onClickFn(i));
+    makeCofFocusable(g, `${keys[i].name} ${mode}`, isSel);
     svg.appendChild(g);
 
     // ── Enharmonic outer ring segment ──────────────────────────────
@@ -1466,6 +1523,7 @@ function drawCOF(svgId, selIdx, mode, onClickFn) {
         e.stopPropagation();
         onClickFn(i, enh); // pass enh as second arg to signal enharmonic switch
       });
+      makeCofFocusable(eg, `${enh.name} ${mode} (enharmonic)`, false);
       svg.appendChild(eg);
     }
   }
@@ -1565,7 +1623,8 @@ function pianoWave(ctx) {
 // Play MIDI notes through the piano voice. mode:
 //   'strum'   — arpeggiated roll, each note plucked and decaying (~1.4s)
 //   'sustain' — all notes struck together, held ~2s, then released
-function playMidis(midis, mode = 'strum') {
+// ringSec optionally overrides the ring length (used by the progression player).
+function playMidis(midis, mode = 'strum', ringSec) {
   const ctx = audioCtx();
   if (!ctx) return;
   if (ctx.state === 'suspended') ctx.resume();
@@ -1574,7 +1633,7 @@ function playMidis(midis, mode = 'strum') {
   const now  = ctx.currentTime;
   const sustain = mode === 'sustain';
   const stagger = sustain ? 0 : 0.11;   // a touch slower than before
-  const ring    = sustain ? 2.0 : 1.4;  // seconds the note rings
+  const ring    = ringSec || (sustain ? 2.0 : 1.4);  // seconds the note rings
   const peak    = 0.13;
 
   midis.forEach((m, i) => {
@@ -1640,8 +1699,9 @@ document.addEventListener('click', e => {
   if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
   const bass = btn.dataset.bass || names[0];
   playMidis(chordVoicing(names, bass), btn.dataset.mode || 'strum');
-  highlightChord(names, bass, btn.dataset.label || '',
-    { root: btn.dataset.root, fifth: btn.dataset.fifth, seventh: btn.dataset.opt7 });
+  const roles = { root: btn.dataset.root, fifth: btn.dataset.fifth, seventh: btn.dataset.opt7 };
+  highlightChord(names, bass, btn.dataset.label || '', roles);
+  _lastPlayedHL = { names, bass, label: btn.dataset.label || '', roles };
   btn.classList.add('playing');
   setTimeout(() => btn.classList.remove('playing'), 320);
 }, true);
@@ -1667,6 +1727,21 @@ document.addEventListener('mouseover', e => {
   if (!e.target.closest('#chord-grid')) return;
   const host = e.target.closest('tbody tr') || e.target.closest('.chord-card, .func-tile');
   if (host) highlightFromHost(host);
+});
+
+// The last chord actually PLAYED (not just hovered). When the pointer leaves
+// the chord grid, the hover preview reverts to this instead of sticking on
+// whatever was hovered last.
+let _lastPlayedHL = null;
+document.getElementById('chord-grid').addEventListener('mouseleave', () => {
+  if (_lastPlayedHL) {
+    const h = _lastPlayedHL;
+    highlightChord(h.names, h.bass, h.label, h.roles);
+  } else {
+    clearPianoHL();
+    const lab = document.getElementById('piano-label');
+    if (lab) lab.textContent = 'Click a key to play, or play a chord to see it here';
+  }
 });
 
 // ═══════════════════ PIANO KEYBOARD
@@ -1753,6 +1828,28 @@ function clearPianoHL() {
     .forEach(k => k.classList.remove('hl', 'hl-5th', 'hl-7th', 'hl-root'));
 }
 
+// Quick orienting progression: I–IV–V–I (i–iv–V–i in minor), root position,
+// one chord per beat, with the piano highlighting each chord as it sounds.
+let _progTimers = [];
+function playProgression() {
+  _progTimers.forEach(clearTimeout); _progTimers = [];
+  const k = keyObj(false);
+  const chords = getDiatonicChords(k.pc, S.mode, useSharp(false));
+  const rns = S.mode === 'major' ? ['I','IV','V','I'] : ['i','iv','V','i'];
+  const stepMs = 900;
+  rns.forEach((rn, i) => {
+    const ch = chords.find(c => c.section === 'diatonic' && c.rn === rn);
+    if (!ch) return;
+    _progTimers.push(setTimeout(() => {
+      const names = ch.triadNotes;
+      playMidis(chordVoicing(names, names[0]), 'sustain', i === rns.length - 1 ? 1.6 : 0.85);
+      const roles = chordRoles(ch);
+      highlightChord(names, names[0], ch.rn, roles);
+      if (i === rns.length - 1) _lastPlayedHL = { names, bass: names[0], label: ch.rn, roles };
+    }, i * stepMs));
+  });
+}
+
 function togglePiano() {
   const bar = document.getElementById('piano-bar');
   const collapsed = bar.classList.toggle('collapsed');
@@ -1803,9 +1900,11 @@ function getChordFunction(ch) {
     if (rn === 'iv' || rn === 'ii°' || rn === 'IV') return 'predominant';
     return 'other';
   }
-  if (section === 'secondary') {
-    if (rn === 'V/ii' || rn === 'V/IV' || rn === 'V/iv') return 'predominant';
-    if (rn === 'V/V' || rn === 'V/vii°') return 'dominant';
+  if (section === 'secondary' || section === 'secondaryLT') {
+    // vii°/x functions like V/x — normalise and use the same mapping
+    const t = rn.replace('vii°/', 'V/');
+    if (t === 'V/ii' || t === 'V/IV' || t === 'V/iv') return 'predominant';
+    if (t === 'V/V' || t === 'V/vii°') return 'dominant';
     return 'other';
   }
   if (['I','i','III','iii','VI','vi'].includes(rn)) return 'tonic';
@@ -1816,7 +1915,7 @@ function getChordFunction(ch) {
 
 function buildInvWrap(ch) {
   const isMin   = ch.min;
-  const isSec   = ch.section === 'secondary';
+  const isSec   = ch.section === 'secondary' || ch.section === 'secondaryLT';
   const isSpec  = ch.section === 'aug6' || ch.section === 'ct';
   const isFixed = ch.fbType === 'fixed';
 
@@ -1892,7 +1991,7 @@ function renderChordsFunctional(chords, grid) {
 
     chlist.forEach(ch => {
       const isMin  = ch.min;
-      const isSec  = ch.section === 'secondary';
+      const isSec  = ch.section === 'secondary' || ch.section === 'secondaryLT';
       const isSpec = ch.section === 'aug6' || ch.section === 'ct';
       const tile = document.createElement('div');
       tile.className = 'func-tile';
@@ -1960,6 +2059,9 @@ function renderChords() {
   const chords = getDiatonicChords(k.pc, S.mode, us);
   document.getElementById('key-display').innerHTML =
     `${k.name} ${S.mode}<small>Key of ${k.name}</small>`;
+  document.getElementById('cadence-label').textContent =
+    S.mode === 'major' ? 'I – IV – V – I' : 'i – iv – V – i';
+  saveKeyState();
   drawCOF('cof-main', S.keyIndex, S.mode, (i, enh) => {
     S.keyIndex = i;
     S.enhKey = enh ? { name: enh.name, pc: enh.pc, sharps: enh.sharps } : null;
@@ -1987,6 +2089,7 @@ function renderChords() {
         diatonic:    'Diatonic Chords',
         cad64:       'Cadential 6/4',
         secondary:   'Secondary Dominants',
+        secondaryLT: 'Secondary Leading-Tone Chords',
         aug6:        'Augmented Sixth Chords',
         neapolitan:  'Neapolitan',
         borrowed:    'Borrowed Chords (Modal Mixture)',
@@ -1996,7 +2099,7 @@ function renderChords() {
     }
 
     const isMin = ch.min;
-    const isSec = ch.section === 'secondary';
+    const isSec = ch.section === 'secondary' || ch.section === 'secondaryLT';
     const isSpec = ch.section === 'aug6' || ch.section === 'ct';
     const card = document.createElement('div');
     card.className = 'chord-card';
@@ -2207,6 +2310,7 @@ function identifyFromBass() {
     diatonic:   'Diatonic Chords',
     cad64:      'Cadential 6/4',
     secondary:  'Secondary Dominants',
+    secondaryLT:'Secondary Leading-Tone Chords',
     aug6:       'Augmented Sixth Chords',
     neapolitan: 'Neapolitan',
     borrowed:   'Borrowed Chords (Modal Mixture)',
@@ -2224,7 +2328,7 @@ function identifyFromBass() {
     }
 
     const isMin  = ch.min;
-    const isSec  = ch.section === 'secondary';
+    const isSec  = ch.section === 'secondary' || ch.section === 'secondaryLT';
     const isSpec = ch.section === 'aug6' || ch.section === 'ct';
 
     const row = document.createElement('div');
@@ -2303,7 +2407,7 @@ function findChord() {
   }
 
   grouped.forEach(({ch, matchedInvs}) => {
-    const isMin = ch.min, isSec = ch.section === 'secondary';
+    const isMin = ch.min, isSec = ch.section === 'secondary' || ch.section === 'secondaryLT';
     const card = document.createElement('div');
     card.className = 'result-card';
     const h3 = document.createElement('h3');
@@ -2411,16 +2515,48 @@ function showTab(btn, id) {
   document.getElementById('tab-'+id).classList.add('active');
   btn.classList.add('active');
 
+  // Keep the hash linkable (#lookup, #modes, …) without polluting history
+  history.replaceState(null, '', id === 'chords' ? location.pathname + location.search : '#' + id);
+
   if      (id === 'chords') renderChords();
   else if (id === 'lookup') { renderLookupCOF(); rebuildNotePicker(); updateSelDisplay(); }
   else if (id === 'bass')   { renderBassCOF(); rebuildBassNotePicker(); }
   else if (id === 'modes')  { renderModesCOF(); renderModes(); }
 }
 
+// ═══════════════════ PERSISTENCE
+
+// Remember the selected key/mode for a day (localStorage has no native expiry,
+// so store a timestamp alongside and discard stale entries on read).
+const KEY_STATE = 'harmonicon-key';
+const KEY_TTL_MS = 24 * 60 * 60 * 1000;
+
+function saveKeyState() {
+  try {
+    localStorage.setItem(KEY_STATE, JSON.stringify(
+      { keyIndex: S.keyIndex, mode: S.mode, enhKey: S.enhKey, ts: Date.now() }));
+  } catch (e) { /* private browsing etc. — harmless */ }
+}
+
+function restoreKeyState() {
+  try {
+    const raw = localStorage.getItem(KEY_STATE);
+    if (!raw) return;
+    const st = JSON.parse(raw);
+    if (!st.ts || Date.now() - st.ts > KEY_TTL_MS) { localStorage.removeItem(KEY_STATE); return; }
+    if (st.mode === 'major' || st.mode === 'minor') S.mode = st.mode;
+    if (Number.isInteger(st.keyIndex) && st.keyIndex >= 0 && st.keyIndex < 12) S.keyIndex = st.keyIndex;
+    S.enhKey = st.enhKey || null;
+    document.getElementById('btn-major').classList.toggle('active', S.mode === 'major');
+    document.getElementById('btn-minor').classList.toggle('active', S.mode === 'minor');
+  } catch (e) { /* corrupt entry — ignore */ }
+}
+
 // ═══════════════════ INIT
 
 document.getElementById('footer-version').textContent = 'v' + VERSION;
 buildPiano();
+restoreKeyState();
 renderChords();
 renderLookupCOF();
 rebuildNotePicker();
@@ -2428,6 +2564,20 @@ renderBassCOF();
 renderModesCOF();
 renderModes();
 rebuildBassNotePicker();
+
+// Deep-link tabs: #chords / #lookup / #bass / #modes opens that tab directly.
+{
+  const hashTab = location.hash.replace('#', '');
+  if (['lookup', 'bass', 'modes'].includes(hashTab)) {
+    const btn = document.querySelector(`.tab-btn[data-tab="${hashTab}"]`);
+    if (btn) showTab(btn, hashTab);
+  }
+}
+
+// Service worker: installable + offline (GitHub Pages serves over HTTPS).
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {/* e.g. file:// — fine */});
+}
 </script>
 
 <!-- GoatCounter analytics (privacy-friendly, no cookies) -->

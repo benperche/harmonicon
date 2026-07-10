@@ -8,20 +8,36 @@ A single-page web app for labelling harmonies in tonal classical works using Rom
 
 ## Features
 
-- **Circle of fifths key selector** — click any segment to set the key; toggle between major and minor
-- **Diatonic chord reference** — all diatonic chords for the selected key, with the diatonic 7th shown in brackets as an optional 4th note
-- **Figured bass inversions** — every inversion listed with its Roman numeral suffix (⁶, ⁶₄, ⁷, ⁶₅, ⁴₃, ⁴₂, °⁷ etc.), bass note highlighted
-- **Secondary dominants** — V and V⁷ of each applicable diatonic chord
-- **Diminished 7th chords** — vii°⁷ with full inversion table (°⁷, °⁶₅, °⁴₃, °⁴₂)
-- **Augmented sixth chords** — It⁺⁶, Fr⁴₃, Ger⁶₅ with correct enharmonic spelling
-- **Common tone chords** — CT°⁷ and CT V⁷ with common tone indicated
-- **Chord lookup** — select any combination of pitch classes and find every diatonic or secondary dominant match in the chosen key, with all applicable inversions
-- **Enharmonic spelling toggle** — switch between auto (key-appropriate), sharps, and flats
-- **Responsive layout** — works in portrait and landscape on desktop, tablet, and mobile
+### Chord reference
+- **Circle of fifths key selector** — click (or keyboard-navigate) any segment to set the key; toggle major/minor; enharmonic keys on the outer ring. Your key choice is remembered for a day.
+- **Diatonic chords** — every chord of the key with the optional 7th shown in brackets
+- **Figured bass inversions** — every inversion with its Roman numeral suffix (⁶, ⁶₄, ⁷, ⁶₅, ⁴₃, ⁴₂, °⁷ …), bass note underlined
+- **Cadential 6/4** — V⁶₄ (the tonic triad over the dominant), grouped with the dominant function
+- **Secondary dominants** — V⁷/x of each applicable degree
+- **Secondary leading-tone chords** — vii°⁷/x of the same degrees, with full °⁶₅/°⁴₃/°⁴₂ inversions
+- **Augmented sixth chords** — It⁺⁶, Fr⁴₃, Ger⁶₅ with strict scale-degree spelling (♭6̂ bass, ♯4̂ top — including correct double accidentals in remote keys)
+- **Neapolitan (N⁶)** and **borrowed chords** (modal mixture) — also strictly spelled
+- **Common tone chords** — CT°⁷ and CT V⁷ with the sustained tone indicated
+- **By Function view** — the same chords grouped Tonic / Pre-dominant / Dominant
+
+### Sound & piano
+- **Audio playback** — dependency-free Web Audio piano voice; ▶ strums, ∿ sustains. A Playback toggle plays triads only (default) or with the 7th. Plays through the media channel on iOS, so it works with the silent switch on.
+- **Piano keyboard** — a collapsible keyboard along the bottom shows every chord you hover, expand, or play, colour-coded by role (root / 3rd / 5th / 7th) with a matching legend. Click any key to hear it.
+- **Orienting progression** — one click plays I–IV–V–I (i–iv–V–i in minor) to settle your ear in the key.
+
+### Lookup & analysis
+- **Chord lookup** — pick pitch classes, find every matching chord in the key with all applicable inversions
+- **Identify from bass note** — choose the bass you see; get every chord/inversion it could be
+- **Modes tab** — the seven church modes on any root, with altered degrees shaded
+
+### App
+- **Installable / offline** — a small service worker makes it a PWA; works with no connection once visited
+- **Linkable tabs** — `#lookup`, `#bass`, `#modes` open that tab directly
+- **Responsive** — desktop, tablet, and phone, portrait or landscape
 
 ## Local use
 
-No build step required. Just open `index.html` directly in any modern browser.
+No build step. Open `index.html` directly, or serve the folder (`python3 -m http.server`) for service-worker support.
 
 ## Figured bass quick reference
 
@@ -31,4 +47,4 @@ No build step required. Just open `index.html` directly in any modern browser.
 | 7th chord | ⁷ | ⁶₅ | ⁴₃ | ⁴₂ |
 | Diminished 7th | °⁷ | °⁶₅ | °⁴₃ | °⁴₂ |
 
-The bass note in each inversion is underlined. The diatonic 7th is shown in *(brackets)* alongside each inversion.
+The bass note in each inversion is underlined. An optional 7th is shown in *(brackets)*; essential chord members (e.g. the French ⁴₃'s 2̂) are shown as plain tones.
