@@ -1828,24 +1828,46 @@ function clearPianoHL() {
     .forEach(k => k.classList.remove('hl', 'hl-5th', 'hl-7th', 'hl-root'));
 }
 
-// Quick orienting progression: I–IV–V–I (i–iv–V–i in minor), root position,
-// one chord per beat, with the piano highlighting each chord as it sounds.
+// Quick orienting progression: I–IV–V–I (i–iv–V–i in minor), keyboard-style
+// voicing — root in a low bass octave, three voice-led upper parts (each chord
+// picks the triad rotation that moves least from the previous chord's voices,
+// so common tones hold instead of parallel root-position blocks).
 let _progTimers = [];
 function playProgression() {
   _progTimers.forEach(clearTimeout); _progTimers = [];
   const k = keyObj(false);
   const chords = getDiatonicChords(k.pc, S.mode, useSharp(false));
   const rns = S.mode === 'major' ? ['I','IV','V','I'] : ['i','iv','V','i'];
-  const stepMs = 900;
-  rns.forEach((rn, i) => {
+  const stepMs = 550;
+
+  let prevUpper = null;
+  const seq = [];
+  rns.forEach(rn => {
     const ch = chords.find(c => c.section === 'diatonic' && c.rn === rn);
     if (!ch) return;
+    const triadPcs = ch.triadNotes.map(noteNameToPc);
+    const bass = 36 + triadPcs[0];                    // root, C2–B2
+    let best = null, bestCost = Infinity;
+    for (let rot = 0; rot < 3; rot++) {
+      const order = [...triadPcs.slice(rot), ...triadPcs.slice(0, rot)];
+      const v = []; let prev = 59;                    // stack upward from ~C4
+      order.forEach(pc => { let m = 60 + ((pc % 12) + 12) % 12; while (m <= prev) m += 12; v.push(m); prev = m; });
+      const cost = prevUpper
+        ? v.reduce((s, m, vi) => s + Math.abs(m - prevUpper[vi]), 0)
+        : Math.abs(v[0] - 64);                        // first chord: sit near E4
+      if (cost < bestCost) { bestCost = cost; best = v; }
+    }
+    prevUpper = best;
+    seq.push({ ch, midis: [bass, ...best] });
+  });
+
+  seq.forEach((step, i) => {
     _progTimers.push(setTimeout(() => {
-      const names = ch.triadNotes;
-      playMidis(chordVoicing(names, names[0]), 'sustain', i === rns.length - 1 ? 1.6 : 0.85);
-      const roles = chordRoles(ch);
-      highlightChord(names, names[0], ch.rn, roles);
-      if (i === rns.length - 1) _lastPlayedHL = { names, bass: names[0], label: ch.rn, roles };
+      playMidis(step.midis, 'sustain', i === seq.length - 1 ? 1.5 : 0.7);
+      const names = step.ch.triadNotes;
+      const roles = chordRoles(step.ch);
+      highlightChord(names, names[0], step.ch.rn, roles);
+      if (i === seq.length - 1) _lastPlayedHL = { names, bass: names[0], label: step.ch.rn, roles };
     }, i * stepMs));
   });
 }
