@@ -99,13 +99,15 @@ Dependency-free Web Audio (section "AUDIO PLAYBACK" in `index.html`):
   presentation, so SVG keeps them identical across platforms. A single
   capture-phase delegated `click` listener handles every `.play-btn` and calls
   `stopPropagation` so playing doesn't toggle the card/tile open.
-- **Optional 7th:** the Playback panel toggles `S.play7th` (default `false` =
-  triad only) via `setPlay7th`. Each button carries `data-opt7` = the removable
-  7th's note name; the click handler drops it when `!S.play7th`. `data-opt7` is
-  only set when the 7th is genuinely optional — never for an essential 7th
-  (aug6 French/German, `essential7`) or one sitting in the bass (`note7inBass`,
-  e.g. a ⁴₂ inversion). The displayed `(7th: …)` bracket is unchanged; only
-  playback responds, so no re-render is needed on toggle.
+- **Figure-driven 7ths (no global toggle):** every button plays exactly its
+  `data-notes`. A card/tile header plays the plain triad and its optional 7th
+  is rendered as a **playable `(7th: X)` chip** (`seventhChipHTML`, class
+  `.seventh-chip`, handled by the same delegated listener and hover preview)
+  that plays the chord with the 7th. Inversion rows always play what their
+  figure shows (a row labelled V⁶₅ includes the 7th). Chords whose rn itself
+  carries ⁷ (CT°⁷, CT V⁷) play all four from the header and get no chip;
+  essential-7th chords (aug6) are untouched. `data-opt7` now only colours the
+  7th blue on the keyboard — it never strips notes.
 
 ## Cadential 6/4
 

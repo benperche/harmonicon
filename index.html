@@ -293,6 +293,16 @@ h1 {
 .td-notes { color: var(--ink2); font-size: 0.8rem; word-spacing: 0.35em; }
 .bass-hl { color: var(--red); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .note-seventh { color: var(--ink3); font-style: italic; word-spacing: normal; }
+/* The "(7th: X)" chip — a playable button styled like the old bracket text,
+   with just enough affordance (underline, hover fill) to read as clickable. */
+.seventh-chip {
+  font: inherit; font-style: italic; color: var(--ink3);
+  background: none; border: none; padding: 1px 5px; margin: 0;
+  border-radius: 4px; cursor: pointer; word-spacing: normal;
+  text-decoration: underline dotted; text-underline-offset: 3px;
+  transition: background 0.12s, color 0.12s;
+}
+.seventh-chip:hover, .seventh-chip.playing { background: var(--teal); color: #fff; text-decoration: none; }
 .rn.special { color: var(--green); }
 .td-rn.special { color: var(--green); }
 
@@ -603,13 +613,6 @@ body.piano-collapsed { padding-bottom: 46px; }
         <div class="mode-row">
           <button class="mode-btn active" id="btn-view-section" onclick="setChordView('section')">By Section</button>
           <button class="mode-btn" id="btn-view-function" onclick="setChordView('function')">By Function</button>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-title">Playback</div>
-        <div class="mode-row">
-          <button class="mode-btn active" id="btn-play-triad" onclick="setPlay7th(false)">Triad only</button>
-          <button class="mode-btn" id="btn-play-7th" onclick="setPlay7th(true)">With 7th</button>
         </div>
       </div>
     </div>
@@ -1370,7 +1373,6 @@ function getDiatonicChords(rootPc, mode, useSharp) {
 const S = {
   mode: 'major', keyIndex: 0,
   chordView: 'section',  // 'section' | 'function'
-  play7th: false,        // include the optional 7th in playback (vs triad only)
   spellingPref: 'auto',  // 'auto' | 'sharps' | 'flats'
   enhKey: null,       // enharmonic key override {name, pc, sharps} when outer ring clicked
   luMode: 'major', luKeyIndex: 0,
@@ -1666,12 +1668,12 @@ function playMidis(midis, mode = 'strum', ringSec) {
   });
 }
 
-// HTML for the strum + sustain button pair. data-notes = comma-separated note
-// names (voicing order), data-bass = the note to place in the bass, data-mode =
-// which playback style the button triggers, data-opt7 = the optional 7th to drop
-// when "Triad only" is selected (omitted when there is no removable 7th),
-// data-label = the chord's Roman numeral (piano caption), data-root/data-fifth =
-// the chord's root/5th note names, used to colour-code the keyboard highlight.
+// HTML for the strum + sustain button pair. Playback is figure-driven: each
+// button plays exactly its data-notes (a card header passes the plain triad,
+// an inversion row its full figure). data-bass = the note voiced lowest,
+// data-mode = strum/sustain, data-opt7 = the 7th's note name (colours it blue
+// on the keyboard when present in data-notes), data-label = the Roman numeral
+// caption, data-root/data-fifth = role note names for the highlight colours.
 function playControlsHTML(noteNames, bassName, opt7, label, root, fifth) {
   const data = `data-notes="${noteNames.join(',')}" data-bass="${bassName}"` +
     (opt7 ? ` data-opt7="${opt7}"` : '') +
@@ -1686,17 +1688,29 @@ function playControlsHTML(noteNames, bassName, opt7, label, root, fifth) {
     `</span>`;
 }
 
-// One delegated, capture-phase listener handles every play button. Capture +
+// The "(7th: X)" bracket as a playable chip: clicking it strums the chord WITH
+// its 7th (the header play buttons give the plain triad). `text` is what the
+// chip displays, e.g. "(7th: F)" on cards or "(B♭)" on functional tiles.
+function seventhChipHTML(ch, label, text) {
+  const roles = chordRoles(ch);
+  return `<button class="seventh-chip" title="Play with the 7th" aria-label="Play ${label} with the 7th" ` +
+    `data-notes="${ch.chordNotes.join(',')}" data-bass="${ch.chordNotes[0]}" data-mode="strum" ` +
+    `data-opt7="${ch.note7}" data-label="${label.includes('⁷') ? label : rnWithSuffix(label, '⁷')}"` +
+    (roles.root ? ` data-root="${roles.root}"` : '') +
+    (roles.fifth ? ` data-fifth="${roles.fifth}"` : '') +
+    `>${text}</button>`;
+}
+
+// One delegated, capture-phase listener handles every play button and every
+// "(7th: …)" chip — each plays exactly the notes in its data-notes. Capture +
 // stopPropagation keeps the click from also toggling the card/tile it sits in.
 document.addEventListener('click', e => {
-  const btn = e.target.closest && e.target.closest('.play-btn');
+  const btn = e.target.closest && e.target.closest('.play-btn, .seventh-chip');
   if (!btn) return;
   e.stopPropagation();
   e.preventDefault();
-  let names = btn.dataset.notes.split(',').filter(Boolean);
+  const names = btn.dataset.notes.split(',').filter(Boolean);
   if (!names.length) return;
-  const opt7 = btn.dataset.opt7;
-  if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
   const bass = btn.dataset.bass || names[0];
   playMidis(chordVoicing(names, bass), btn.dataset.mode || 'strum');
   const roles = { root: btn.dataset.root, fifth: btn.dataset.fifth, seventh: btn.dataset.opt7 };
@@ -1707,24 +1721,29 @@ document.addEventListener('click', e => {
 }, true);
 
 // Highlight (without playing) the chord owned by an element that contains a
-// play button — used for hover preview and tap-to-expand. Reads the same data
-// attributes, so the Triad-only toggle is respected here too.
+// play button — used for hover preview and tap-to-expand.
 function highlightFromHost(host) {
   const btn = host && host.querySelector('.play-btn');
   if (!btn) return;
-  let names = btn.dataset.notes.split(',').filter(Boolean);
+  const names = btn.dataset.notes.split(',').filter(Boolean);
   if (!names.length) return;
-  const opt7 = btn.dataset.opt7;
-  if (opt7 && !S.play7th) names = names.filter(n => n !== opt7);
   highlightChord(names, btn.dataset.bass || names[0], btn.dataset.label || '',
-    { root: btn.dataset.root, fifth: btn.dataset.fifth, seventh: opt7 });
+    { root: btn.dataset.root, fifth: btn.dataset.fifth, seventh: btn.dataset.opt7 });
 }
 
 // Delegated hover preview on the chord grid: an inversion row highlights that
 // inversion; anywhere else in a card/tile highlights the chord (root position).
+// Hovering a "(7th: …)" chip previews the chord WITH its 7th.
 document.addEventListener('mouseover', e => {
   if (!e.target.closest) return;
   if (!e.target.closest('#chord-grid')) return;
+  const chip = e.target.closest('.seventh-chip');
+  if (chip) {
+    const names = chip.dataset.notes.split(',').filter(Boolean);
+    highlightChord(names, chip.dataset.bass || names[0], chip.dataset.label || '',
+      { root: chip.dataset.root, fifth: chip.dataset.fifth, seventh: chip.dataset.opt7 });
+    return;
+  }
   const host = e.target.closest('tbody tr') || e.target.closest('.chord-card, .func-tile');
   if (host) highlightFromHost(host);
 });
@@ -1955,7 +1974,9 @@ function buildInvWrap(ch) {
   ch.inversions.forEach(inv => {
     const tr = document.createElement('tr');
     const nHtml = renderNoteList(inv);
-    const invOpt7 = (inv.note7 && !inv.essential7 && !inv.note7inBass) ? inv.note7 : null;
+    // Rows play exactly what their figure shows (a row labelled V⁶₅ includes
+    // the 7th); data-opt7 here only colours the 7th blue on the keyboard.
+    const invOpt7 = (inv.note7 && !inv.essential7) ? inv.note7 : null;
     const playTd = `<td class="td-play">${playControlsHTML(inv.allNotes, inv.bassNote, invOpt7, inv.rnDisplay, roles.root, roles.fifth)}</td>`;
     if (isFixed) {
       tr.innerHTML = `
@@ -2034,13 +2055,17 @@ function renderChordsFunctional(chords, grid) {
       nameEl.className = 'func-name';
       nameEl.textContent = ch.name;
 
+      const tRnHas7 = ch.rn.includes('⁷');
+      const tHasOpt7 = ch.note7 && !ch.essential7 && !tRnHas7;
       const notesEl = document.createElement('div');
       notesEl.className = 'func-notes';
-      if (ch.note7 && ch.essential7) {
-        notesEl.textContent = ch.chordNotes.join('–');
-      } else if (ch.note7) {
-        notesEl.innerHTML = ch.triadNotes.join('–') +
-          ' <span class="func-note7">(' + ch.note7 + ')</span>';
+      if (ch.note7 && !tHasOpt7) {
+        notesEl.innerHTML = tRnHas7 && !ch.essential7
+          ? ch.triadNotes.join('–') + ' <span class="func-note7">(' + ch.note7 + ')</span>'
+          : ch.chordNotes.join('–');
+      } else if (tHasOpt7) {
+        notesEl.innerHTML = ch.triadNotes.join('–') + ' ' +
+          seventhChipHTML(ch, ch.rn, `(${ch.note7})`);
       } else {
         notesEl.textContent = ch.triadNotes.join('–');
       }
@@ -2049,9 +2074,10 @@ function renderChordsFunctional(chords, grid) {
       midEl.appendChild(notesEl);
 
       const tRoles = chordRoles(ch);
+      const tHeaderNotes = tHasOpt7 ? ch.chordNotes.slice(0, -1) : ch.chordNotes;
       const playEl = document.createElement('span');
-      playEl.innerHTML = playControlsHTML(ch.chordNotes, ch.chordNotes[0],
-        (ch.note7 && !ch.essential7) ? ch.note7 : null, ch.rn, tRoles.root, tRoles.fifth);
+      playEl.innerHTML = playControlsHTML(tHeaderNotes, tHeaderNotes[0],
+        tRnHas7 && ch.note7 ? ch.note7 : null, ch.rn, tRoles.root, tRoles.fifth);
 
       const expIcon = document.createElement('span');
       expIcon.className = 'func-expand-icon';
@@ -2128,16 +2154,24 @@ function renderChords() {
 
     const hdr = document.createElement('div');
     hdr.className = 'chord-header';
-    const notesSummary = ch.note7 && ch.essential7
-      ? ch.chordNotes.join(' – ')
-      : ch.note7
-        ? ch.triadNotes.join(' – ') + ' <span class="note-seventh">(7th: ' + ch.note7 + ')</span>'
+    // Figure-driven playback: header buttons play what the Roman numeral says —
+    // a plain rn (V, ii) plays the triad and its optional 7th becomes a playable
+    // "(7th: X)" chip; an rn that already carries ⁷ (CT°⁷, CT V⁷) plays all four.
+    const rnHas7 = ch.rn.includes('⁷');
+    const hasOpt7 = ch.note7 && !ch.essential7 && !rnHas7;
+    const headerNotes = hasOpt7 ? ch.chordNotes.slice(0, -1) : ch.chordNotes;
+    const notesSummary = ch.note7 && !hasOpt7
+      ? (rnHas7 && !ch.essential7
+          ? ch.triadNotes.join(' – ') + ' <span class="note-seventh">(7th: ' + ch.note7 + ')</span>'
+          : ch.chordNotes.join(' – '))
+      : hasOpt7
+        ? ch.triadNotes.join(' – ') + ' ' + seventhChipHTML(ch, ch.rn, `(7th: ${ch.note7})`)
         : ch.triadNotes.join(' – ');
     hdr.innerHTML = `
       <span class="rn ${isMin?'minor-rn':''} ${isSec?'secondary':''} ${isSpec?'special':''}">${ch.rn}</span>
       <span class="chord-name">${ch.name}</span>
       <span class="chord-notes-sum">${notesSummary}</span>
-      ${playControlsHTML(ch.chordNotes, ch.chordNotes[0], (ch.note7 && !ch.essential7) ? ch.note7 : null, ch.rn, chordRoles(ch).root, chordRoles(ch).fifth)}
+      ${playControlsHTML(headerNotes, headerNotes[0], rnHas7 && ch.note7 ? ch.note7 : null, ch.rn, chordRoles(ch).root, chordRoles(ch).fifth)}
       <span class="expand-icon">▼</span>`;
     hdr.addEventListener('click', () => { card.classList.toggle('open'); highlightFromHost(card); });
 
@@ -2486,14 +2520,6 @@ function setChordView(view) {
   document.getElementById('btn-view-section').classList.toggle('active', view === 'section');
   document.getElementById('btn-view-function').classList.toggle('active', view === 'function');
   renderChords();
-}
-
-// Whether playback includes the optional 7th. Read at click time, so no
-// re-render is needed — the displayed (7th: …) bracket is unaffected.
-function setPlay7th(on) {
-  S.play7th = on;
-  document.getElementById('btn-play-7th').classList.toggle('active', on);
-  document.getElementById('btn-play-triad').classList.toggle('active', !on);
 }
 
 function showTab(btn, id) {

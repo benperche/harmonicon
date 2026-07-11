@@ -21,7 +21,7 @@ A single-page web app for labelling harmonies in tonal classical works using Rom
 - **By Function view** — the same chords grouped Tonic / Pre-dominant / Dominant
 
 ### Sound & piano
-- **Audio playback** — dependency-free Web Audio piano voice; ▶ strums, ∿ sustains. A Playback toggle plays triads only (default) or with the 7th. Plays through the media channel on iOS, so it works with the silent switch on.
+- **Audio playback** — dependency-free Web Audio piano voice; ▶ strums, ∿ sustains. Playback is figure-driven: a chord's buttons play its plain triad, clicking the *(7th: X)* bracket plays it with the 7th, and inversion rows play exactly what their figure shows. Plays through the media channel on iOS, so it works with the silent switch on.
 - **Piano keyboard** — a collapsible keyboard along the bottom shows every chord you hover, expand, or play, colour-coded by role (root / 3rd / 5th / 7th) with a matching legend. Click any key to hear it.
 - **Orienting progression** — one click plays I–IV–V–I (i–iv–V–i in minor) to settle your ear in the key.
 
