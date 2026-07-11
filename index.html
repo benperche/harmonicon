@@ -1862,8 +1862,8 @@ function clearPianoHL() {
 // Quick orienting progression: I–IV–V–I (i–iv–V–i in minor), keyboard-style
 // voicing — root in a low bass octave, three voice-led upper parts (each chord
 // picks the triad rotation that moves least from the previous chord's voices,
-// so common tones hold instead of parallel root-position blocks). Strummed with
-// the same warm plucked envelope as the chord buttons.
+// so common tones hold instead of parallel root-position blocks). Struck as
+// block chords (sustain envelope) in a low, warm register.
 let _progTimers = [];
 function playProgression() {
   _progTimers.forEach(clearTimeout); _progTimers = [];
@@ -1896,7 +1896,7 @@ function playProgression() {
   seq.forEach((step, i) => {
     _progTimers.push(setTimeout(() => {
       const last = i === seq.length - 1;
-      playMidis(step.midis, 'strum', last ? 1.15 : 0.9);
+      playMidis(step.midis, 'sustain', last ? 1.15 : 0.9);
       const names = step.ch.triadNotes;
       const roles = chordRoles(step.ch);
       highlightChord(names, names[0], step.ch.rn, roles);
